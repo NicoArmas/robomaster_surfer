@@ -1,6 +1,6 @@
 """This is the controller for Task 1 of the second Robotics assignment.
 """
-#!/usr/bin/env python
+# !/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import sys
@@ -17,14 +17,19 @@ from .vision import Camera
 import matplotlib.pyplot as plt
 import cv2
 
+SAVE_VIDEO = False
+
+
 class CorridorLane(Enum):
     LEFT = -1
     CENTER = 0
     RIGHT = 1
 
+
 class SwitchState(Enum):
     STRAIGHT = 0
     SWITCHING = 1
+
 
 class ControllerNode(Node):
     """
@@ -37,15 +42,15 @@ class ControllerNode(Node):
     def __init__(self):
         super().__init__('controller_node')
 
-  
+        self.timer = None
         self.lin_vel = 0.5  # desired linear vel to keep
         self.lat_vel = 0.0
 
         self.num_lanes = 3
         self.corridor_size = 1.5
 
-        self.lane_size = self.corridor_size/self.num_lanes
-        
+        self.lane_size = self.corridor_size / self.num_lanes
+
         self.switch_period = 1
 
         self.current_lane = CorridorLane(0)
@@ -58,9 +63,8 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.counter = 0
-        self.camera = Camera(self)
-        self.camera_topic = self.create_subscription(Image, 'camera/image_raw', self.camera.camera_callback, 10)
+        self.camera = Camera(self, 1000)
+        self.camera_topic = self.create_subscription(Image, 'camera/image_raw', self.camera.camera_callback, 1)
 
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
@@ -74,7 +78,7 @@ class ControllerNode(Node):
     def start(self):
         """Create and immediately start a timer that will regularly publish commands
         """
-        self.timer = self.create_timer(1/60, self.update_callback)
+        self.timer = self.create_timer(1 / 60, self.update_callback)
 
     def stop(self):
         """Set all velocities to zero
@@ -89,63 +93,55 @@ class ControllerNode(Node):
         if self.camera.frame is None:
             return
 
-        self.get_logger().info('Saving frames...')
-        frame = self.camera.frame
-        if self.counter == 0:
-            pass
-        else:
-            exit(0)
-
-        self.get_logger().info(f'Saving frame {self.counter}')
-        plt.imshow(frame)
-        plt.savefig(f'test{self.counter}.png')
-        self.counter += 1
+        # Save the video when the framebuffer is full.
+        if SAVE_VIDEO and self.camera.frame_idx == 0:
+            w = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (1280, 720))
+            for frame in self.camera.framebuffer:
+                w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            w.release()
 
         cmd_vel = Twist()
 
         cmd_vel.linear.x = self.lin_vel
-        
+
         if self.state == SwitchState.STRAIGHT:
-                self.lat_vel = 0.0
-                if random.uniform(0,1) > 0.995:
-                    self.next_lane = self.switch_lane_rand()
-                    self.get_logger().info(f'Next lane: {self.next_lane}')
+            self.lat_vel = 0.0
+            if random.uniform(0, 1) > 0.995:
+                self.next_lane = self.switch_lane_rand()
+                self.get_logger().info(f'Next lane: {self.next_lane}')
 
-                    if self.next_lane != self.current_lane:
-                        
-                        diff = (self.next_lane.value - self.current_lane.value)
-                        sign = -1 if diff >= 0 else 1
+                if self.next_lane != self.current_lane:
 
-                        crossing_num = abs(diff)
-                        
-                        self.switch_period = crossing_num
+                    diff = (self.next_lane.value - self.current_lane.value)
+                    sign = -1 if diff >= 0 else 1
 
-                        self.state = SwitchState.SWITCHING
-                        self.timestamp = self.get_clock().now().nanoseconds
-                        self.lat_vel = sign * self.lane_size
+                    crossing_num = abs(diff)
 
+                    self.switch_period = crossing_num
 
-                    else:
-                        pass
-                        #self.get_logger().info('Next lane equals current lane, should go straight')
+                    self.state = SwitchState.SWITCHING
+                    self.timestamp = self.get_clock().now().nanoseconds
+                    self.lat_vel = sign * self.lane_size
+                else:
+                    pass
+                    # self.get_logger().info('Next lane equals current lane, should go straight')
         else:
             dt = (self.get_clock().now().nanoseconds - self.timestamp) * 1e-9
 
             if dt >= self.switch_period:
-                #self.get_logger().info("Finished switching, now should go straight")
+                # self.get_logger().info("Finished switching, now should go straight")
                 self.state = SwitchState.STRAIGHT
                 self.current_lane = self.next_lane
                 self.lat_vel = 0.0
                 self.switch_period = None
-                
-                
+
         self.lin_vel = 0.5  # desired linear vel to keep
         self.lat_vel = 0.0
 
         cmd_vel.linear.y = self.lat_vel
 
         self.vel_publisher.publish(cmd_vel)
-                       
+
     def switch_lane_rand(self):
         """Select random lane
         """
@@ -157,7 +153,6 @@ class ControllerNode(Node):
         self.get_logger().info(f'Lat. vel: {self.lat_vel}')
         self.get_logger().info(f'Lin. vel: {self.lin_vel}')
         self.get_logger().info(f'Switch period: {self.switch_period}')
-
 
 
 def main():
