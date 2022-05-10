@@ -38,7 +38,7 @@ class ControllerNode(Node):
         self.lat_vel = 0.0
 
         self.num_lanes = 3
-        self.corridor_size = 1.35
+        self.corridor_size = 1.5
 
         self.lane_size = self.corridor_size/self.num_lanes
         
@@ -116,7 +116,8 @@ class ControllerNode(Node):
                 self.switch_period = None
                 
                 
-            
+        self.lin_vel = 0.5  # desired linear vel to keep
+        self.lat_vel = 0.0
 
         cmd_vel.linear.y = self.lat_vel
 
