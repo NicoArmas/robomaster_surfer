@@ -23,7 +23,7 @@ def generate_launch_description():
         # Start a ROS node, equivalent to ros2 run <package_name> <executable_name>
         Node(
             package='robomaster_surfer',
-            executable='controller_node1',
+            executable='lane_switcher',
             
             # Launch controller_node in the namespace defined by the thymio_name
             # launch argument (default: /thymio0). Combined with the use of

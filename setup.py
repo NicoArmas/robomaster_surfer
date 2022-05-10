@@ -25,7 +25,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'controller_node1 = robomaster_surfer.controller_node_task1:main'
+            'lane_switcher = robomaster_surfer.switch_lane:main'
         ],
     },
 )
