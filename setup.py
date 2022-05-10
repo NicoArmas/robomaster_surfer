@@ -2,11 +2,13 @@ from setuptools import setup
 from glob import glob
 
 package_name = 'robomaster_surfer'
+vision_package = 'robomaster_surfer.vision'
+models_package = 'robomaster_surfer.vision.models'
 
 setup(
     name=package_name,
     version='0.0.0',
-    packages=[package_name],
+    packages=[package_name, vision_package, models_package],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),

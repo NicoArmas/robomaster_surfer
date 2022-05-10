@@ -11,7 +11,11 @@ from enum import Enum
 import rclpy
 from geometry_msgs.msg import Twist, Pose
 from rclpy.node import Node
+from sensor_msgs.msg import Image
 import random
+from .vision import Camera
+import matplotlib.pyplot as plt
+import cv2
 
 class CorridorLane(Enum):
     LEFT = -1
@@ -54,6 +58,9 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
+        self.counter = 0
+        self.camera = Camera(self)
+        self.camera_topic = self.create_subscription(Image, 'camera/image_raw', self.camera.camera_callback, 10)
 
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
@@ -78,6 +85,22 @@ class ControllerNode(Node):
     def update_callback(self):
         """Update linear and angular velocities and publish them to ROS.
         """
+        # Wait until an image is available
+        if self.camera.frame is None:
+            return
+
+        self.get_logger().info('Saving frames...')
+        frame = self.camera.frame
+        if self.counter == 0:
+            pass
+        else:
+            exit(0)
+
+        self.get_logger().info(f'Saving frame {self.counter}')
+        plt.imshow(frame)
+        plt.savefig(f'test{self.counter}.png')
+        self.counter += 1
+
         cmd_vel = Twist()
 
         cmd_vel.linear.x = self.lin_vel
