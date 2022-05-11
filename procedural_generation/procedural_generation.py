@@ -15,9 +15,14 @@ clientID = sim.simxStart('127.0.0.1', 19997, True, True,
 def place_obstacle(clientID, handle, position):
     _, a = sim.simxCopyPasteObjects(
         clientID, [handle], sim.simx_opmode_blocking)
+    a = a[0]
+    sim.simxSetObjectIntParameter(
+        clientID, a, 3004, 0, sim.simx_opmode_blocking)
     sim.simxSetObjectPosition(
-        clientID, a[0], -1, position, sim.simx_opmode_oneshot)
-    return a[0]
+        clientID, a, -1, position, sim.simx_opmode_oneshot)
+    sim.simxSetObjectIntParameter(
+        clientID, a, 3004, 1, sim.simx_opmode_oneshot)
+    return a
 
 
 def remove_obstacle(clientID, handle):
@@ -26,9 +31,15 @@ def remove_obstacle(clientID, handle):
 
 
 def move_obstacle(clientID, handle, position):
-    handle2 = place_obstacle(clientID, handle, position)
-    remove_obstacle(clientID, handle)
-    return handle2
+    sim.simxSetObjectIntParameter(
+        clientID, handle, 3004, 0, sim.simx_opmode_blocking)
+    sim.simxSetObjectPosition(
+        clientID, handle, -1, position, sim.simx_opmode_oneshot)
+    sim.simxSetObjectIntParameter(
+        clientID, handle, 3004, 1, sim.simx_opmode_oneshot)
+    # handle2 = place_obstacle(clientID, handle, position)
+    # remove_obstacle(clientID, handle)
+    return handle
 
 
 def place_obstacles(obs, handlers, switcher_count, offset_world, offset_blocks, obstacle_size):
@@ -111,15 +122,11 @@ if clientID != -1:
         wrp = (wall_pose[0]+5, wall_pose[1]+1.5, wall_pose[2])
         tp = (pos_tile[0]+5, pos_tile[1], pos_tile[2])
         hanlder_wall_left = move_obstacle(clientID, hanlder_wall_left, wlp)
+        time.sleep(0.02)
         hanlder_wall_right = move_obstacle(clientID, hanlder_wall_right, wrp)
-        # sim.simxSetObjectPosition(
-        #    clientID, hanlder_wall_left, -1, wlp, sim.simx_opmode_oneshot)
-        # sim.simxSetObjectPosition(
-        #    clientID, hanlder_wall_right, -1,  (wall_pose[0]+5, wall_pose[1]+1.5, wall_pose[2]), sim.simx_opmode_oneshot)
-        # Set tile new position
+        time.sleep(0.02)
         tile_handler = move_obstacle(clientID, tile_handler, tp)
-        # sim.simxSetObjectPosition(
-        #    clientID, tile_handler, -1, tp, sim.simx_opmode_oneshot)
+        time.sleep(0.02)
 
         return tp, wlp, tile_handler, hanlder_wall_left, hanlder_wall_right
 
@@ -161,6 +168,9 @@ if clientID != -1:
             switcher_count += 5
             generated_next_chunk = True
 
+        _, pos_RM = sim.simxGetObjectPosition(
+            clientID, hanlder_RM, -1, sim.simx_opmode_blocking)
+
         if not start and abs(cur_tile_x - pos_RM[0]) > 5.5:
             start = True
             moved_tile = tiles_handlers[0]
@@ -171,15 +181,15 @@ if clientID != -1:
             cur_tile_x = pos_RM[0]
 
         for el in range(1, 5):
-            # if start and len(pos_obstacles[el]) > 0 and len(tiles_objects[0][el]) > 0:
-            #    obstacle_pos = pos_obstacles[el][0]
-            #    pos_obstacles[el] = pos_obstacles[el][1:]
-            #    handle_to_move = tiles_objects[0][el][0]
-            #    tiles_objects[0][el] = tiles_objects[0][el][1:]
-            #    new_tile_obs[el].append(move_obstacle(
-            #        clientID, handle_to_move, obstacle_pos))
+            if start and len(pos_obstacles[el]) > 0 and len(tiles_objects[0][el]) > 0:
+                obstacle_pos = pos_obstacles[el][0]
+                pos_obstacles[el] = pos_obstacles[el][1:]
+                handle_to_move = tiles_objects[0][el][0]
+                tiles_objects[0][el] = tiles_objects[0][el][1:]
+                new_tile_obs[el].append(move_obstacle(
+                    clientID, handle_to_move, obstacle_pos))
 
-            if start and len(pos_obstacles[el]) > 0:
+            elif start and len(pos_obstacles[el]) > 0:
                 obstacle_pos = pos_obstacles[el][0]
                 pos_obstacles[el] = pos_obstacles[el][1:]
                 new_tile_obs[el].append(place_obstacle(
@@ -189,7 +199,8 @@ if clientID != -1:
                 handle_to_move = tiles_objects[0][el][0]
                 tiles_objects[0][el] = tiles_objects[0][el][1:]
                 remove_obstacle(clientID, handle_to_move)
-            # time.sleep(0.02)
+
+            time.sleep(0.05)
 
         if len(pos_obstacles[1]) == 0 and len(tiles_objects[0][1]) == 0:
             start = False
@@ -197,8 +208,6 @@ if clientID != -1:
             tiles_objects = tiles_objects[1:]+[new_tile_obs]
             new_tile_obs = {1: [], 2: [], 3: [], 4: []}
 
-        _, pos_RM = sim.simxGetObjectPosition(
-            clientID, hanlder_RM, -1, sim.simx_opmode_blocking)
 
 else:
     print('Failed connecting to remote API server')
