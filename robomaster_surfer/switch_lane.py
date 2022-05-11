@@ -83,7 +83,7 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 600)
+        self.camera = Camera(self, 600, save_data=SAVE_VIDEO)
         self.is_saving = False
 
         self.init_theta = None
@@ -145,12 +145,6 @@ class ControllerNode(Node):
         # Wait until an image is available
         if self.camera.frame is None or self.pose is None:
             return
-
-        #Save the video when the framebuffer is full.
-        if SAVE_VIDEO and self.camera.buffer_full and not self.is_saving:
-            self.get_logger().info("Saving buffer")
-            self.is_saving = True
-            self.camera.save_buffer('data/video_{}.mp4')
 
         cmd_vel = Twist()
 

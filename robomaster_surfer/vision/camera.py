@@ -8,12 +8,13 @@ from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 import os
+import multiprocessing
 
 
 # A camera is a device that can take pictures.
 # It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
 class Camera:
-    def __init__(self, node: Node, framebuffer_size: int):
+    def __init__(self, node: Node, framebuffer_size: int, save_data=False):
         """
         This function initializes the class with the node and framebuffer size
 
@@ -23,11 +24,13 @@ class Camera:
         :type framebuffer_size: int
         """
         self.node = node
+        self.save_data = save_data
+        self.buf_size = framebuffer_size
         self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
         self.framebuf_idx = 0
         self.frame_id = 0
         self.frame = None
-        self.buffer_full = False
+        self.buffer_full = [False] * 2
         self.video_idx = 0
         self._video_decoder = libmedia_codec.H264Decoder()
         if not os.path.exists('./data'):
@@ -46,27 +49,33 @@ class Camera:
         self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         self.framebuffer[self.framebuf_idx] = self.frame
         self.framebuf_idx = (self.framebuf_idx + 1) % self.framebuffer.shape[0]
+        if self.save_data:
+            cv2.imwrite('./data/img_{}.png'.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
         # self.node.get_logger().debug("Frame {} received".format(self.frame_id))
         # cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
         # self.node.get_logger().debug("Frame {} saved".format(self.frame_id))
         self.frame_id += 1
-        if self.framebuf_idx == 0:
-            self.buffer_full = True
+        # if self.framebuf_idx == 0:
+        #     self.buffer_full = True
+        #     self.node.get_logger().info(f"Saving buffer {self.framebuffer_used}")
+        #     run save buffer in another process
+            # multiprocessing.Process(target=Camera.save_buffer, args=(self, 'data/video{}.mp4')).start()
 
-    async def save_buffer(self, filename: str):
+    def save_buffer(self, filename: str):
         """
         It takes the frames from the buffer and saves them to a video file
 
         :param filename: the name of the file to save the video to
         :type filename: str
         """
-        self.buffer_full = False
+        buffer_to_empty = self.framebuffers[np.where(self.buffer_full == True)[0][0]]
         w = cv2.VideoWriter(filename.format(self.video_idx), cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
-        for i, frame in enumerate(deepcopy(self.framebuffer)):
+        for frame in self.framebuffer[buffer_to_empty]:
             w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
             # cv2.imwrite(path.format(i), cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         self.node.get_logger().info(f'Saved buffer frames to {filename.format(self.video_idx)}')
         w.release()
+        self.buffer_full[buffer_to_empty] = False
         self.node.is_saving = False
         self.video_idx += 1
 
