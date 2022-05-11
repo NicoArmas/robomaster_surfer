@@ -26,6 +26,7 @@ EPSILON = 1e-4
 class Lane():
 
     def __init__(self, id, name, pos):
+
         self.id = id
         self.name = name
         self.pos_y = pos
@@ -41,8 +42,16 @@ class ProportionalController:
     def __init__(self, kp=2):
         self.kp = kp
 
-    def update_vel(self, des_y, curr_y):
+    def update_lat_vel(self, des_y, curr_y):
+
         return self.kp * (des_y - curr_y)
+    
+    def update_ang_vel(self, des_theta, curr_theta):
+
+        return self.kp * (des_theta - curr_theta)
+
+
+
 
 
 class ControllerNode(Node):
@@ -59,6 +68,7 @@ class ControllerNode(Node):
         self.timer = None
         self.lin_vel = 0.5  # desired linear vel to keep
         self.lat_vel = 0.0
+        self.ang_vel = 0.0
 
         self.num_lanes = 3
         self.corridor_size = 1.5
@@ -80,6 +90,8 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
+        self.init_theta = None
+        self.theta = None
         self.camera = Camera(self, 3, save_data=SAVE_DATA)
 
         # Create a publisher for the topic 'cmd_vel'
@@ -88,11 +100,11 @@ class ControllerNode(Node):
         # Create a subscriber for RM Odometry
         self.pose_subscriber = self.create_subscription(
             Odometry, 'odom', self.pose_callback, 3)
-
+    
     def create_lanes(self):
 
         lanes = []
-        pos = self.corridor_size - (self.lane_size / 2)
+        pos = self.corridor_size - (self.lane_size/2)
 
         for i, name in zip(range(self.num_lanes), ['left', 'center', 'right']):
             lanes.append(Lane(i, name, pos))
@@ -100,9 +112,12 @@ class ControllerNode(Node):
             pos -= self.lane_size
 
         return lanes
-
+    
     def pose_callback(self, msg):
         self.pose = msg.pose.pose.position
+        if self.init_theta is None:
+            self.init_theta = msg.pose.pose.orientation.qz
+        self.theta = msg.pose.pose.orientation.qz
         self.pose.y += self.init_lane.pos_y
         # self.get_logger().info(f"pose: {self.pose}")
 
@@ -125,9 +140,9 @@ class ControllerNode(Node):
             return
 
         # Save the video when the framebuffer is full.
-        # if SAVE_VIDEO and self.camera.buffer_full:
-        #     self.get_logger().info("Saving buffer")
-        #     self.camera.save_buffer('/home/usi/dev_ws/src/robomaster_surfer/dataset/')
+        # if SAVE_VIDEO and self.camera.frame_idx == 0:
+        #     self.get_logger().info("Saving video...")
+        #     self.camera.save_video('video.mp4')
 
         cmd_vel = Twist()
 
@@ -137,9 +152,11 @@ class ControllerNode(Node):
             self.get_logger().debug("Lane position: " + str(self.current_lane.pos_y), throttle_duration_sec=0.5)
             self.get_logger().debug("RM position: " + str(self.pose.y), throttle_duration_sec=0.5)
 
-            self.lat_vel = self.pc.update_vel(
+            self.lat_vel = self.pc.update_lat_vel(
                 self.current_lane.pos_y, self.pose.y)
             self.get_logger().debug("Calc vel: " + str(self.lat_vel), throttle_duration_sec=0.5)
+
+            self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
 
             # if random.uniform(0,1) > 2:
             #     self.next_lane = self.switch_lane_rand()
@@ -158,12 +175,14 @@ class ControllerNode(Node):
             #         self.timestamp = self.get_clock().now().nanoseconds
             #         self.lat_vel = sign * self.lane_size
 
-            # else:
-            #     pass
-            # self.get_logger().info('Next lane equals current lane, should go straight')
+
+                # else:
+                #     pass
+                    # self.get_logger().info('Next lane equals current lane, should go straight')
         else:
-            self.lat_vel = self.pc.update_vel(
+            self.lat_vel = self.pc.update_lat_vel(
                 self.next_lane.pos_y, self.pose.y)
+            self.ang_vel = 0.0
 
             if (self.next_lane.pos_y - self.pose.y) <= EPSILON:
                 # self.get_logger().info("Finished switching, now should go straight")
@@ -172,9 +191,11 @@ class ControllerNode(Node):
                 self.lat_vel = 0.0
                 self.switch_period = None
 
+
         self.lin_vel = 0.5
 
         cmd_vel.linear.y = self.lat_vel
+        cmd_vel.angular.z = self.ang_vel
 
         self.vel_publisher.publish(cmd_vel)
 
