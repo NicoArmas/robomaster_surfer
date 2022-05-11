@@ -116,8 +116,8 @@ class ControllerNode(Node):
     def pose_callback(self, msg):
         self.pose = msg.pose.pose.position
         if self.init_theta is None:
-            self.init_theta = msg.pose.pose.orientation.qz
-        self.theta = msg.pose.pose.orientation.qz
+            self.init_theta = msg.pose.pose.orientation.z
+        self.theta = msg.pose.pose.orientation.z
         self.pose.y += self.init_lane.pos_y
         # self.get_logger().info(f"pose: {self.pose}")
 
