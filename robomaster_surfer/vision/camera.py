@@ -40,8 +40,9 @@ class Camera:
         # self.framebuffer[self.framebuf_idx] = self.frame
         # self.framebuf_idx = (self.framebuf_idx + 1) % self.framebuffer.shape[0]
         self.node.get_logger().debug("Frame {} received".format(self.frame_id))
-        cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
-        self.node.get_logger().debug("Frame {} saved".format(self.frame_id))
+        if self.save_data:
+            cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
+            self.node.get_logger().debug("Frame {} saved".format(self.frame_id))
         self.frame_id += 1
         # if self.framebuf_idx == 0:
         #     self.buffer_full = True

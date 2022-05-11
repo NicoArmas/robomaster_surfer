@@ -19,7 +19,7 @@ import random
 from .vision import Camera
 import matplotlib.pyplot as plt
 
-SAVE_DATA = True
+SAVE_DATA = False
 EPSILON = 1e-4
 
 
