@@ -171,7 +171,7 @@ if clientID != -1:
         _, pos_RM = sim.simxGetObjectPosition(
             clientID, hanlder_RM, -1, sim.simx_opmode_blocking)
 
-        if not start and abs(cur_tile_x - pos_RM[0]) > 5.5:
+        if not start and abs(cur_tile_x - pos_RM[0]) > 5:
             start = True
             moved_tile = tiles_handlers[0]
             pos_tile, pos_wall, moved_tile, hanlder_wall_left, hanlder_wall_right = update_tiles(
