@@ -19,14 +19,13 @@ import random
 from .vision import Camera
 import matplotlib.pyplot as plt
 
-SAVE_VIDEO = True
+SAVE_DATA = True
 EPSILON = 1e-4
 
 
 class Lane():
 
     def __init__(self, id, name, pos):
-
         self.id = id
         self.name = name
         self.pos_y = pos
@@ -43,9 +42,7 @@ class ProportionalController:
         self.kp = kp
 
     def update_vel(self, des_y, curr_y):
-
         return self.kp * (des_y - curr_y)
-
 
 
 class ControllerNode(Node):
@@ -83,7 +80,7 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 200)
+        self.camera = Camera(self, 3, save_data=SAVE_DATA)
 
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
@@ -91,11 +88,11 @@ class ControllerNode(Node):
         # Create a subscriber for RM Odometry
         self.pose_subscriber = self.create_subscription(
             Odometry, 'odom', self.pose_callback, 3)
+
     def create_lanes(self):
 
         lanes = []
-        pos = self.corridor_size - (self.lane_size/2)
-
+        pos = self.corridor_size - (self.lane_size / 2)
 
         for i, name in zip(range(self.num_lanes), ['left', 'center', 'right']):
             lanes.append(Lane(i, name, pos))
@@ -103,6 +100,7 @@ class ControllerNode(Node):
             pos -= self.lane_size
 
         return lanes
+
     def pose_callback(self, msg):
         self.pose = msg.pose.pose.position
         self.pose.y += self.init_lane.pos_y
@@ -127,9 +125,9 @@ class ControllerNode(Node):
             return
 
         # Save the video when the framebuffer is full.
-        if SAVE_VIDEO and self.buffer_full:
-            self.get_logger().info("Saving video...")
-            self.camera.save_video('video.mp4')
+        # if SAVE_VIDEO and self.camera.buffer_full:
+        #     self.get_logger().info("Saving buffer")
+        #     self.camera.save_buffer('/home/usi/dev_ws/src/robomaster_surfer/dataset/')
 
         cmd_vel = Twist()
 
@@ -160,10 +158,9 @@ class ControllerNode(Node):
             #         self.timestamp = self.get_clock().now().nanoseconds
             #         self.lat_vel = sign * self.lane_size
 
-
-                # else:
-                #     pass
-                    # self.get_logger().info('Next lane equals current lane, should go straight')
+            # else:
+            #     pass
+            # self.get_logger().info('Next lane equals current lane, should go straight')
         else:
             self.lat_vel = self.pc.update_vel(
                 self.next_lane.pos_y, self.pose.y)
@@ -174,7 +171,6 @@ class ControllerNode(Node):
                 self.current_lane = self.next_lane
                 self.lat_vel = 0.0
                 self.switch_period = None
-
 
         self.lin_vel = 0.5
 
