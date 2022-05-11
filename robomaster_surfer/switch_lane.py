@@ -19,12 +19,14 @@ import random
 from .vision import Camera
 import matplotlib.pyplot as plt
 
-SAVE_VIDEO = True
-EPSILON = 1e-4
+SAVE_VIDEO = False
+EPSILON = 0.01
 
 
-class Lane:
+class Lane():
+
     def __init__(self, id, name, pos):
+
         self.id = id
         self.name = name
         self.pos_y = pos
@@ -37,14 +39,23 @@ class SwitchState(Enum):
 
 class ProportionalController:
 
-    def __init__(self, kp=2):
+    def __init__(self, kp=2, kd=0.4):
         self.kp = kp
+        self.kd = kd
+        self.last_value = None
 
-    def update_lat_vel(self, des_y, curr_y):
-        return self.kp * (des_y - curr_y)
+    def update_lat_vel(self, val, dt):
+        i = 0
+        if self.last_value != None:
+            i = ((val - self.last_value)/dt)*self.kd
+        self.last_value = val
+
+        return val*self.kp + i
 
     def update_ang_vel(self, des_theta, curr_theta):
+
         return self.kp * (des_theta - curr_theta)
+
 
 
 class ControllerNode(Node):
@@ -75,7 +86,7 @@ class ControllerNode(Node):
         self.current_lane = self.init_lane
         self.next_lane = None
         self.crossing_num = 0
-        self.pc = ProportionalController(kp=1)
+        self.pc = ProportionalController(kp=2)
 
         self.state = SwitchState(0)
         self.prev_state = None
@@ -95,6 +106,9 @@ class ControllerNode(Node):
         # Create a subscriber for RM Odometry
         self.pose_subscriber = self.create_subscription(
             Odometry, 'odom', self.pose_callback, 3)
+        
+        self.steering_sequence = [0, 1, 2, 1, 2, 1, 0, 1, 0, 1, 2, 1]
+        self.cur = 0
 
     def create_lanes(self):
         """
@@ -104,9 +118,8 @@ class ControllerNode(Node):
         lanes = []
         pos = self.corridor_size - (self.lane_size/2)
 
-        for i, name in zip(range(self.num_lanes), ['left', 'center', 'right']):
+        for i, name in enumerate(['left', 'center', 'right']):
             lanes.append(Lane(i, name, pos))
-
             pos -= self.lane_size
 
         return lanes
@@ -160,6 +173,11 @@ class ControllerNode(Node):
 
             self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
 
+            self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
+
+            self.next_lane = self.lanes[self.steering_sequence[self.cur]]
+            self.state = SwitchState.SWITCHING
+            self.get_logger().info(f'Next lane: {self.next_lane.id}')
             # if random.uniform(0,1) > 2:
             #     self.next_lane = self.switch_lane_rand()
             #     self.get_logger().info(f'Next lane: {self.next_lane}')
@@ -180,16 +198,20 @@ class ControllerNode(Node):
             #     pass
             # self.get_logger().info('Next lane equals current lane, should go straight')
         else:
-            self.lat_vel = self.pc.update_lat_vel(
-                self.next_lane.pos_y, self.pose.y)
-            self.ang_vel = 0.0
+            diff = self.next_lane.pos_y - self.pose.y
+            self.lat_vel = self.pc.update_lat_vel(diff, 1/60)
+            self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
+            self.get_logger().info("Distance from point: " +
+                                   str(abs(diff)))
 
-            if (self.next_lane.pos_y - self.pose.y) <= EPSILON:
-                # self.get_logger().info("Finished switching, now should go straight")
+            if abs(diff) <= EPSILON:
+                self.get_logger().info("Finished switching, now should go straight")
                 self.state = SwitchState.STRAIGHT
                 self.current_lane = self.next_lane
                 self.lat_vel = 0.0
                 self.switch_period = None
+
+                self.cur = (self.cur + 1) % len(self.steering_sequence)
 
         self.lin_vel = 0.5
 
