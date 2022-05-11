@@ -36,7 +36,7 @@ class Camera:
         self.frame_idx = (self.frame_idx + 1) % self.framebuffer.shape[0]
 
     def save_video(self, filename: str):
-        w = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'H264'), 20, (1280, 720))
+        w = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'avc1'), 20, (1280, 720))
         for frame in deepcopy(self.framebuffer):
             w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         self.node.get_logger().info('Saved video to output.mp4')

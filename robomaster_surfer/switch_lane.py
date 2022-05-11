@@ -18,7 +18,6 @@ from sensor_msgs.msg import Image
 import random
 from .vision import Camera
 import matplotlib.pyplot as plt
-import cv2
 
 SAVE_VIDEO = True
 EPSILON = 1e-4
@@ -38,9 +37,9 @@ class SwitchState(Enum):
     SWITCHING = 1
 
 
-class ProportionalController():
+class ProportionalController:
 
-    def __init__(self, kp=1):
+    def __init__(self, kp=2):
         self.kp = kp
 
     def update_vel(self, des_y, curr_y):
@@ -129,19 +128,20 @@ class ControllerNode(Node):
 
         # Save the video when the framebuffer is full.
         if SAVE_VIDEO and self.camera.frame_idx == 0:
+            self.get_logger().info("Saving video...")
             self.camera.save_video('video.mp4')
 
         cmd_vel = Twist()
 
         cmd_vel.linear.x = self.lin_vel
-        self.get_logger().info(str(self.state))
+        self.get_logger().info(str(self.state), throttle_duration_sec=0.5)
         if self.state == SwitchState.STRAIGHT:
-            self.get_logger().info("Lane position: " + str(self.current_lane.pos_y))
-            self.get_logger().info("RM position: " + str(self.pose.y))
+            self.get_logger().info("Lane position: " + str(self.current_lane.pos_y), throttle_duration_sec=0.5)
+            self.get_logger().info("RM position: " + str(self.pose.y), throttle_duration_sec=0.5)
 
             self.lat_vel = self.pc.update_vel(
                 self.current_lane.pos_y, self.pose.y)
-            self.get_logger().info("Calc vel: " + str(self.lat_vel))
+            self.get_logger().info("Calc vel: " + str(self.lat_vel), throttle_duration_sec=0.5)
 
             # if random.uniform(0,1) > 2:
             #     self.next_lane = self.switch_lane_rand()
@@ -176,8 +176,7 @@ class ControllerNode(Node):
                 self.switch_period = None
 
 
-        self.lin_vel = 0.5  # desired linear vel to keep
-        self.lat_vel = 0.0
+        self.lin_vel = 0.5
 
         cmd_vel.linear.y = self.lat_vel
 
@@ -189,11 +188,11 @@ class ControllerNode(Node):
         return self.lanes[random.choice([0, 1, 2])]
 
     def print_debug(self):
-        self.get_logger().info(f'Curr. lane: {self.current_lane}')
-        self.get_logger().info(f'Dest. vel: {self.next_lane}')
-        self.get_logger().info(f'Lat. vel: {self.lat_vel}')
-        self.get_logger().info(f'Lin. vel: {self.lin_vel}')
-        self.get_logger().info(f'Switch period: {self.switch_period}')
+        self.get_logger().info(f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
+        self.get_logger().info(f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
+        self.get_logger().info(f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
+        self.get_logger().info(f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
+        self.get_logger().info(f'Switch period: {self.switch_period}', throttle_duration_sec=0.5)
 
 
 def main():
