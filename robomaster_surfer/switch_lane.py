@@ -127,7 +127,7 @@ class ControllerNode(Node):
             return
 
         # Save the video when the framebuffer is full.
-        if SAVE_VIDEO and self.camera.frame_idx == 0:
+        if SAVE_VIDEO and self.buffer_full:
             self.get_logger().info("Saving video...")
             self.camera.save_video('video.mp4')
 

@@ -22,6 +22,7 @@ class Camera:
         self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
         self.frame_idx = 0
         self.frame = None
+        self.buffer_full = False
         self.decoder = CvBridge()
         self.node.create_subscription(Image, 'camera/image_raw', self.camera_callback, 1)
 
@@ -34,8 +35,11 @@ class Camera:
         self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         self.framebuffer[self.frame_idx] = self.frame
         self.frame_idx = (self.frame_idx + 1) % self.framebuffer.shape[0]
+        if self.frame_idx == 0:
+            self.buffer_full = True
 
     def save_video(self, filename: str):
+        self.buffer_full = False
         w = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'avc1'), 20, (1280, 720))
         for frame in deepcopy(self.framebuffer):
             w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
