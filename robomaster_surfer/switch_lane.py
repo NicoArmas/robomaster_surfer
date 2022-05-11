@@ -83,7 +83,7 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 1000)
+        self.camera = Camera(self, 200)
 
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
@@ -134,14 +134,14 @@ class ControllerNode(Node):
         cmd_vel = Twist()
 
         cmd_vel.linear.x = self.lin_vel
-        self.get_logger().info(str(self.state), throttle_duration_sec=0.5)
+        self.get_logger().debug(str(self.state), throttle_duration_sec=0.5)
         if self.state == SwitchState.STRAIGHT:
-            self.get_logger().info("Lane position: " + str(self.current_lane.pos_y), throttle_duration_sec=0.5)
-            self.get_logger().info("RM position: " + str(self.pose.y), throttle_duration_sec=0.5)
+            self.get_logger().debug("Lane position: " + str(self.current_lane.pos_y), throttle_duration_sec=0.5)
+            self.get_logger().debug("RM position: " + str(self.pose.y), throttle_duration_sec=0.5)
 
             self.lat_vel = self.pc.update_vel(
                 self.current_lane.pos_y, self.pose.y)
-            self.get_logger().info("Calc vel: " + str(self.lat_vel), throttle_duration_sec=0.5)
+            self.get_logger().debug("Calc vel: " + str(self.lat_vel), throttle_duration_sec=0.5)
 
             # if random.uniform(0,1) > 2:
             #     self.next_lane = self.switch_lane_rand()
@@ -188,11 +188,11 @@ class ControllerNode(Node):
         return self.lanes[random.choice([0, 1, 2])]
 
     def print_debug(self):
-        self.get_logger().info(f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
-        self.get_logger().info(f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
-        self.get_logger().info(f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
-        self.get_logger().info(f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
-        self.get_logger().info(f'Switch period: {self.switch_period}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Switch period: {self.switch_period}', throttle_duration_sec=0.5)
 
 
 def main():
