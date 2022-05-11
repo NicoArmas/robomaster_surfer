@@ -19,7 +19,7 @@ import random
 from .vision import Camera
 import matplotlib.pyplot as plt
 
-SAVE_DATA = True
+SAVE_VIDEO = True
 EPSILON = 1e-4
 
 
@@ -80,7 +80,7 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 3, save_data=SAVE_DATA)
+        self.camera = Camera(self, 600)
 
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
@@ -125,9 +125,9 @@ class ControllerNode(Node):
             return
 
         # Save the video when the framebuffer is full.
-        # if SAVE_VIDEO and self.camera.buffer_full:
-        #     self.get_logger().info("Saving buffer")
-        #     self.camera.save_buffer('/home/usi/dev_ws/src/robomaster_surfer/dataset/')
+        if SAVE_VIDEO and self.camera.buffer_full:
+            self.get_logger().info("Saving buffer")
+            self.camera.save_buffer('data/{}.mp4')
 
         cmd_vel = Twist()
 
