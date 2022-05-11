@@ -23,8 +23,7 @@ SAVE_VIDEO = True
 EPSILON = 1e-4
 
 
-class Lane():
-
+class Lane:
     def __init__(self, id, name, pos):
         self.id = id
         self.name = name
@@ -42,15 +41,10 @@ class ProportionalController:
         self.kp = kp
 
     def update_lat_vel(self, des_y, curr_y):
-
         return self.kp * (des_y - curr_y)
 
     def update_ang_vel(self, des_theta, curr_theta):
-
         return self.kp * (des_theta - curr_theta)
-
-
-
 
 
 class ControllerNode(Node):
@@ -101,7 +95,10 @@ class ControllerNode(Node):
             Odometry, 'odom', self.pose_callback, 3)
 
     def create_lanes(self):
-
+        """
+        It creates a list of lanes, each with a unique id, name, and position
+        :return: A list of lanes.
+        """
         lanes = []
         pos = self.corridor_size - (self.lane_size/2)
 
@@ -113,6 +110,12 @@ class ControllerNode(Node):
         return lanes
 
     def pose_callback(self, msg):
+        """
+        The function takes in a message from the topic `/odom` and stores the position and orientation of the car in the
+        variables `self.pose` and `self.theta` respectively
+
+        :param msg: the message that is received from the topic
+        """
         self.pose = msg.pose.pose.position
         if self.init_theta is None:
             self.init_theta = msg.pose.pose.orientation.z
@@ -121,18 +124,21 @@ class ControllerNode(Node):
         # self.get_logger().info(f"pose: {self.pose}")
 
     def start(self):
-        """Create and immediately start a timer that will regularly publish commands
+        """
+        Create and immediately start a timer that will regularly publish commands
         """
         self.timer = self.create_timer(1 / 60, self.update_callback)
 
     def stop(self):
-        """Set all velocities to zero
+        """
+        Set all velocities to zero
         """
         cmd_vel = Twist()
         self.vel_publisher.publish(cmd_vel)
 
     async def update_callback(self):
-        """Update linear and angular velocities and publish them to ROS.
+        """
+        Update linear and angular velocities and publish them to ROS.
         """
         # Wait until an image is available
         if self.camera.frame is None or self.pose is None:
@@ -160,24 +166,22 @@ class ControllerNode(Node):
             # if random.uniform(0,1) > 2:
             #     self.next_lane = self.switch_lane_rand()
             #     self.get_logger().info(f'Next lane: {self.next_lane}')
-
+            #
             #     if self.next_lane != self.current_lane:
-
+            #
             #         diff = (self.next_lane - self.current_lane.id)
             #         sign = -1 if diff >= 0 else 1
-
+            #
             #         crossing_num = abs(diff)
-
+            #
             #         self.switch_period = crossing_num
-
+            #
             #         self.state = SwitchState.SWITCHING
             #         self.timestamp = self.get_clock().now().nanoseconds
             #         self.lat_vel = sign * self.lane_size
-
-
-                # else:
-                #     pass
-                    # self.get_logger().info('Next lane equals current lane, should go straight')
+            # else:
+            #     pass
+            # self.get_logger().info('Next lane equals current lane, should go straight')
         else:
             self.lat_vel = self.pc.update_lat_vel(
                 self.next_lane.pos_y, self.pose.y)
@@ -198,11 +202,16 @@ class ControllerNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def switch_lane_rand(self):
-        """Select random lane
+        """
+        > The function `switch_lane_rand` takes in a `Car` object and returns a random lane from the list of lanes
+        :return: the lanes of the car.
         """
         return self.lanes[random.choice([0, 1, 2])]
 
     def print_debug(self):
+        """
+        It prints the current lane, the destination lane, the lateral velocity, the linear velocity, and the switch period
+        """
         self.get_logger().debug(f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
         self.get_logger().debug(f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
         self.get_logger().debug(f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)

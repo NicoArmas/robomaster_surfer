@@ -11,6 +11,7 @@ import os
 
 
 # A camera is a device that can take pictures.
+# It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
 class Camera:
     def __init__(self, node: Node, framebuffer_size: int):
         """
@@ -53,6 +54,12 @@ class Camera:
             self.buffer_full = True
 
     def save_buffer(self, filename: str):
+        """
+        It takes the frames from the buffer and saves them to a video file
+
+        :param filename: the name of the file to save the video to
+        :type filename: str
+        """
         self.buffer_full = False
         w = cv2.VideoWriter(filename.format(self.video_idx), cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
         for i, frame in enumerate(deepcopy(self.framebuffer)):
