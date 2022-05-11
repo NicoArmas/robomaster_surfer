@@ -53,7 +53,7 @@ class Camera:
         if self.framebuf_idx == 0:
             self.buffer_full = True
 
-    def save_buffer(self, filename: str):
+    async def save_buffer(self, filename: str):
         """
         It takes the frames from the buffer and saves them to a video file
 
@@ -67,6 +67,7 @@ class Camera:
             # cv2.imwrite(path.format(i), cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         self.node.get_logger().info(f'Saved buffer frames to {filename.format(self.video_idx)}')
         w.release()
+        self.node.is_saving = False
         self.video_idx += 1
 
     def _h264_decode(self, data):

@@ -84,6 +84,8 @@ class ControllerNode(Node):
 
         self.pose = None
         self.camera = Camera(self, 600)
+        self.is_saving = False
+
         self.init_theta = None
         self.theta = None
 
@@ -144,10 +146,11 @@ class ControllerNode(Node):
         if self.camera.frame is None or self.pose is None:
             return
 
-        # Save the video when the framebuffer is full.
-        # if SAVE_VIDEO and self.camera.buffer_full:
-        #     self.get_logger().info("Saving buffer")
-        #     self.camera.save_buffer('/home/usi/dev_ws/src/robomaster_surfer/dataset/')
+        #Save the video when the framebuffer is full.
+        if SAVE_VIDEO and self.camera.buffer_full and not self.is_saving:
+            self.get_logger().info("Saving buffer")
+            self.is_saving = True
+            self.camera.save_buffer('data/video_{}.mp4')
 
         cmd_vel = Twist()
 
