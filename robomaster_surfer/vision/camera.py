@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+import cv2
 import numpy as np
 from rclpy.node import Node
 from cv_bridge import CvBridge
@@ -31,3 +34,10 @@ class Camera:
         self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         self.framebuffer[self.frame_idx] = self.frame
         self.frame_idx = (self.frame_idx + 1) % self.framebuffer.shape[0]
+
+    def save_video(self, filename: str):
+        w = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'H264'), 20, (1280, 720))
+        for frame in deepcopy(self.framebuffer):
+            w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        self.node.get_logger().info('Saved video to output.mp4')
+        w.release()

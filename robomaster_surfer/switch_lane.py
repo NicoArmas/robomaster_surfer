@@ -15,6 +15,7 @@ from nav_msgs.msg import Odometry
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+import random
 from .vision import Camera
 import matplotlib.pyplot as plt
 import cv2
@@ -119,7 +120,7 @@ class ControllerNode(Node):
         cmd_vel = Twist()
         self.vel_publisher.publish(cmd_vel)
 
-    def update_callback(self):
+    async def update_callback(self):
         """Update linear and angular velocities and publish them to ROS.
         """
         # Wait until an image is available
@@ -128,11 +129,8 @@ class ControllerNode(Node):
 
         # Save the video when the framebuffer is full.
         if SAVE_VIDEO and self.camera.frame_idx == 0:
-            w = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
-            for frame in self.camera.framebuffer:
-                w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-            self.get_logger().info('Saved video to output.mp4')
-            w.release()
+            self.camera.save_video('video.mp4')
+
         cmd_vel = Twist()
 
         cmd_vel.linear.x = self.lin_vel
@@ -179,6 +177,7 @@ class ControllerNode(Node):
 
 
         self.lin_vel = 0.5  # desired linear vel to keep
+        self.lat_vel = 0.0
 
         cmd_vel.linear.y = self.lat_vel
 
