@@ -84,8 +84,6 @@ class ControllerNode(Node):
 
         self.pose = None
         self.camera = Camera(self, 1000)
-        self.camera_topic = self.create_subscription(
-            Image, 'camera/image_raw', self.camera.camera_callback, 1)
 
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
@@ -130,10 +128,10 @@ class ControllerNode(Node):
 
         # Save the video when the framebuffer is full.
         if SAVE_VIDEO and self.camera.frame_idx == 0:
-            w = cv2.VideoWriter(
-                'output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (1280, 720))
+            w = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
             for frame in self.camera.framebuffer:
                 w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            self.get_logger().info('Saved video to output.mp4')
             w.release()
         cmd_vel = Twist()
 

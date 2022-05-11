@@ -1,6 +1,7 @@
 import numpy as np
 from rclpy.node import Node
 from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
 
 
 # A camera is a device that can take pictures.
@@ -19,8 +20,9 @@ class Camera:
         self.frame_idx = 0
         self.frame = None
         self.decoder = CvBridge()
+        self.node.create_subscription(Image, 'camera/image_raw', self.camera_callback, 1)
 
-    def camera_callback(self, msg):
+    async def camera_callback(self, msg):
         """
         It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
 
