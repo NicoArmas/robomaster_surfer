@@ -59,7 +59,7 @@ class Camera:
         #     self.buffer_full = True
         #     self.node.get_logger().info(f"Saving buffer {self.framebuffer_used}")
         #     run save buffer in another process
-            # multiprocessing.Process(target=Camera.save_buffer, args=(self, 'data/video{}.mp4')).start()
+        # multiprocessing.Process(target=Camera.save_buffer, args=(self, 'data/video{}.mp4')).start()
 
     def save_buffer(self, filename: str):
         """
@@ -94,8 +94,8 @@ class Camera:
         self.frame = msg
         self.node.get_logger().info(f'got frame: {msg}')
         in_frame = (
-        np
-        .frombuffer(msg.data, np.uint8)
-        .reshape([height, width, 3])
-    )
+            np
+                .frombuffer(msg.data, np.uint8)
+                .reshape([1280, 720, 3])
+        )
         exit(0)
