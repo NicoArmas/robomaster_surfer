@@ -3,7 +3,7 @@ try:
 except:
     pass
 
-test_state=2
+test_state=0
 test_transition=1
 
 
@@ -63,29 +63,29 @@ if clientID != -1:
         if test_transition==0:
             pass
         else:
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1], z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1], z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
 
     elif test_state==1:
         if test_transition==0:
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1], z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1], z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1]+0.5, z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1]+0.5, z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
         else:
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1], z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1], z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1]-0.5, z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1]-0.5, z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
     
     elif test_state==2:
         if test_transition==0:
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1], z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1], z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
             obstacle_pos=(pos_RM[0],pos_RM[1]+0.5, z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
         else:
-            obstacle_pos=(pos_RM[0]+1,pos_RM[1], z)
+            obstacle_pos=(pos_RM[0]+1.5,pos_RM[1], z)
             place_obstacle(clientID, hanlder_obstacle, obstacle_pos)
 
 else:
