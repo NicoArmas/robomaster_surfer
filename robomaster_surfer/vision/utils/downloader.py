@@ -90,8 +90,8 @@ def download_dataset(train=True, validation=True, test=True):
                 os.chdir(folder)
             else:
                 continue
-            for zip in glob.glob("*.zip"):
-                unzip(zip, zip.split('.')[0])
-                os.system(f"rm {zip}")
+            for zf in glob.glob("*.zip"):
+                unzip(zf, zf.split('.')[0])
+                os.system(f"rm {zf}")
             os.chdir("..")
 

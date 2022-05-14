@@ -66,7 +66,7 @@ class Autoencoder(nn.Module):
         if convolutional:
             self.encoder = ConvolutionalEncoder(dropout_rate=dropout_rate)
             if self.hidden_size > 0:
-                self.bottleneck = Bottleneck((self.batch_size, 4, 4), hidden_size, bottleneck_activation)
+                self.bottleneck = Bottleneck((self.batch_size, 29, 29), hidden_size, bottleneck_activation)
             self.decoder = ConvolutionalDecoder(output_size, dropout_rate=dropout_rate)
         else:
             self.encoder = Encoder(input_size, hidden_size, output_size, device=self.device)

@@ -44,5 +44,4 @@ class ConvolutionalEncoder(nn.Module):
         x = self.dropout(F.leaky_relu(self.conv1(x)))
         x = self.dropout(F.leaky_relu(self.conv2(x)))
         x = F.leaky_relu(self.conv3(x))
-        x = x.view(x.size(0), -1)
         return x
