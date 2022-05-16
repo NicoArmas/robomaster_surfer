@@ -39,7 +39,7 @@ def plot_stages(autoencoder, data, save=False, plot=True, path=None):
     """
     plt.subplot(2, 2, 1)
     plt.title('input')
-    plt.imshow(data[0].cpu().numpy())
+    plt.imshow(data[0].cpu().numpy(), cmap='gray')
     plt.axis('off')
     plt.subplot(2, 2, 2)
     plt.title('latent space')
@@ -47,11 +47,11 @@ def plot_stages(autoencoder, data, save=False, plot=True, path=None):
     with torch.no_grad():
         encoded, decoded = autoencoder(torch.unsqueeze(data, 0))
     new_shape = get_shape(encoded[0].shape[0])
-    plt.imshow(encoded[0].cpu().numpy().reshape(new_shape))
+    plt.imshow(encoded[0].cpu().numpy().reshape(new_shape), cmap='viridis')
     plt.axis('off')
     plt.subplot(2, 2, 3)
     plt.title('decoded')
-    plt.imshow(decoded[0][0].cpu().numpy())
+    plt.imshow(decoded[0][0].cpu().numpy(), cmap='gray')
     plt.axis('off')
     plt.subplot(2, 2, 4)
     plt.title('Reconstruction error')

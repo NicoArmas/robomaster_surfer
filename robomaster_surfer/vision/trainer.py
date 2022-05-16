@@ -107,23 +107,28 @@ class Trainer:
         :return: The model trained and tested.
         """
 
-        if os.path.exists(self.run_name) and not overwrite:
+        if os.path.exists(f"{self.run_name}.pt") and not overwrite:
             print(f"Model {self.run_name} already exists. Use overwrite=True to overwrite")
             return
+
         if test and test_path is None:
             raise ValueError("test_path must be specified if test is True")
 
         if self.use_wandb:
             wandb.init(**self.wandb_cfg)
             wandb.watch(self.model, log="all")
+            model_artifact = wandb.Artifact(f'{self.run_name}', type='model')
         if self.run_name is None:
             self.run_name = "run_" + str(self.run_number)
         if self.use_wandb:
             wandb.config.update({"run_name": self.run_name})
         self.train()
+        torch.save(self.model.state_dict(), f"{self.run_name}.pt")
         if test:
             self.test(test_path)
         if self.use_wandb:
+            model_artifact.add_file(f"{self.run_name}.pt")
+            wandb.log_artifact(model_artifact)
             wandb.finish()
 
     def train(self):
@@ -277,7 +282,7 @@ class Trainer:
 
 def main():
     batch_size = 32
-    epochs = 100
+    epochs = 3
     lr = 1e-4
     dropout = 0
     train_set = LaneDataset('robomaster_surfer/vision/data/preprocessed')
@@ -285,9 +290,12 @@ def main():
     train_set, valid_set = torch.utils.data.random_split(train_set, [int(len(train_set) * 0.95),
                                                                      int(len(train_set) * 0.05)])
 
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, num_workers=4,
+                                               pin_memory=True, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, num_workers=4,
+                                               pin_memory=True, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, num_workers=4,
+                                              pin_memory=True, shuffle=False)
 
     input_size = output_size = (128, 128)
     for hidden_size in [2, 4, 8, 16]:
