@@ -27,7 +27,7 @@ class ConvolutionalDecoder(nn.Module):
         :param x: the input to the network
         :return: The output of the last layer, which is the reconstructed image.
         """
-        x = x.view(-1, 128, 4, 4)
+        x = x.view(-1, 128, 29, 29)
         x = F.leaky_relu(self.deconv0(x))
         x = self.dropout(F.leaky_relu(self.deconv1(x)))
         x = self.dropout(F.leaky_relu(self.deconv2(x)))
