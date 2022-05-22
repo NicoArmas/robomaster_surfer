@@ -3,21 +3,15 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import random
 import sys
-from math import pi
-
 from enum import Enum
 
 import rclpy
-from geometry_msgs.msg import Twist, Pose
+from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-
 from rclpy.node import Node
-from sensor_msgs.msg import Image
-import random
+
 from .vision import Camera
-import matplotlib.pyplot as plt
 
 SAVE_VIDEO = True
 EPSILON = 0.01
@@ -190,54 +184,50 @@ class ControllerNode(Node):
 
         if self.state == State.FORWARD:
             if self.sensed_front_obstacles():
-                self.state=State.DECIDING
+                self.state = State.DECIDING
             else:
-                err=self.current_lane.pos_y - self.pose.y
-                self.lat_vel=self.pc.update_lat_vel(err, self.dt)
-                self.ang_vel=self.pc.update_ang_vel(
+                err = self.current_lane.pos_y - self.pose.y
+                self.lat_vel = self.pc.update_lat_vel(err, self.dt)
+                self.ang_vel = self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
         # self.get_logger().info(str(self.state))
 
         if self.state == State.DECIDING:
-            self.next_lane=self.lane_to_reach()
-            self.state=State.CHECKING
+            self.next_lane = self.lane_to_reach()
+            self.state = State.CHECKING
 
         # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
             if not self.sensed_lat_obstacles():
-                self.next_lane = self.lanes[0] # ricordarsi di togliere
-                diff=self.next_lane.pos_y - self.pose.y
-                self.lat_vel=self.pc.update_lat_vel(diff, self.dt)
-                self.ang_vel=self.pc.update_ang_vel(
+                self.next_lane = self.lanes[0]  # ricordarsi di togliere
+                diff = self.next_lane.pos_y - self.pose.y
+                self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
+                self.ang_vel = self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
                 if abs(diff) <= EPSILON:
                     self.get_logger().debug("Finished switching, now should go straight")
-                    self.current_lane=self.next_lane
-                    self.state=State.FORWARD
+                    self.current_lane = self.next_lane
+                    self.state = State.FORWARD
 
             else:
-                err=self.current_lane.pos_y - self.pose.y
-                self.lat_vel=self.pc.update_lat_vel(err, self.dt)
-                self.ang_vel=self.pc.update_ang_vel(
+                err = self.current_lane.pos_y - self.pose.y
+                self.lat_vel = self.pc.update_lat_vel(err, self.dt)
+                self.ang_vel = self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
         # self.get_logger().info(str(self.state))
         # self.get_logger().info(str(''))
 
+        cmd_vel = Twist()
+        cmd_vel.linear.x = self.lin_vel
 
-
-        cmd_vel=Twist()
-        cmd_vel.linear.x=self.lin_vel
-
-        cmd_vel.linear.y=self.lat_vel
-        cmd_vel.angular.z=self.ang_vel
+        cmd_vel.linear.y = self.lat_vel
+        cmd_vel.angular.z = self.ang_vel
 
         self.vel_publisher.publish(cmd_vel)
-
-
 
     def print_debug(self):
         """
@@ -260,7 +250,7 @@ def main():
     rclpy.init(args=sys.argv)
 
     # Create an instance of your node class
-    node=ControllerNode()
+    node = ControllerNode()
     node.start()
 
     # Keep processings events until someone manually shuts down the node
