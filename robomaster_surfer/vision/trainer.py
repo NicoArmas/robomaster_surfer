@@ -1,29 +1,19 @@
-import copy
-import json
 import math
-import multiprocessing
-import time
 from datetime import datetime
 
-import chime
 import os
-import random
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torchvision import transforms
 from tqdm.auto import tqdm
-import matplotlib.pyplot as plt
 
 import wandb
-from models.autoencoder import Autoencoder
-from utils import compute_auc_score, plot_stages
+from host.autoencoder import Autoencoder
+from host.utils import compute_auc_score, plot_stages
 from dataset import LaneDataset
-from fractions import Fraction
-import torch.functional as F
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # WANDB_PROJECT = ""
@@ -282,7 +272,7 @@ class Trainer:
 
 def main():
     batch_size = 32
-    epochs = 3
+    epochs = 100
     lr = 1e-4
     dropout = 0
     train_set = LaneDataset('robomaster_surfer/vision/data/preprocessed')
@@ -298,7 +288,7 @@ def main():
                                               pin_memory=True, shuffle=False)
 
     input_size = output_size = (128, 128)
-    for hidden_size in [2, 4, 8, 16]:
+    for hidden_size in [8]:
 
         model = Autoencoder(input_size, hidden_size, output_size,
                             convolutional=True, dropout_rate=dropout,
@@ -323,7 +313,7 @@ def main():
             "run_number": 0,
             "denoise": False,
             "batch_size": batch_size,
-            "use_wandb": True,
+            "use_wandb": False,
             "wandb_cfg": wandb_cfg,
             "run_name": f'bottleneck_{hidden_size}',
         }

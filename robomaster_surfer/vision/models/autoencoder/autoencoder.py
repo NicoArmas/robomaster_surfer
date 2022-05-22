@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import sklearn.metrics as metrics
 from tqdm.auto import tqdm
-from utils import compute_auc_score
 
 import numpy as np
 from torchinfo import summary

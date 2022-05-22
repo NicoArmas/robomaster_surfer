@@ -1,3 +1,4 @@
+import socketserver
 from copy import deepcopy
 
 import cv2
@@ -7,14 +8,18 @@ import libmedia_codec
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
+from .utils import FrameClient
 import os
 import multiprocessing
-
+from multiprocessing import Queue
+import threading
 
 # A camera is a device that can take pictures.
 # It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
+
+
 class Camera:
-    def __init__(self, node: Node, framebuffer_size: int, save_data=False):
+    def __init__(self, node: Node, framebuffer_size: int, save_data=False, save_video=False, save_preds=False):
         """
         This function initializes the class with the node and framebuffer size
 
@@ -27,14 +32,31 @@ class Camera:
         self.save_data = save_data
         self.buf_size = framebuffer_size
         self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
+        self.streambuffer = Queue()
+        self.anomaly_buffer = Queue()
+        self.move_buffer = Queue()
         self.framebuf_idx = 0
         self.frame_id = 0
         self.frame = None
         self.buffer_full = [False] * 2
         self.video_idx = 0
+        self.save_video = save_video
+        self.video_writer = None
+        self.save_preds = save_preds
+        self.prediction = None
         self._video_decoder = libmedia_codec.H264Decoder()
+        self.frame_client = FrameClient('192.168.122.1', 5555, self.streambuffer,
+                                        self.anomaly_buffer, self.move_buffer, logger=self.node.get_logger())
+        self.frame_client.start()
+
         if not os.path.exists('./data'):
             os.mkdir('./data')
+
+        if self.save_video:
+            self.node.get_logger().info("Initializing video writer")
+            self.video_writer = cv2.VideoWriter('./data/video.mp4',
+                                                cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
+
         self.decoder = CvBridge()
         # Try this topic: camera/image_h264
         self.node.create_subscription(Image, 'camera/image_raw', self.camera_raw_callback, 1)
@@ -46,11 +68,17 @@ class Camera:
 
         :param msg: the image message
         """
-        self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="rgb8")
+        self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         self.framebuffer[self.framebuf_idx] = self.frame
         self.framebuf_idx = (self.framebuf_idx + 1) % self.framebuffer.shape[0]
         if self.save_data:
-            cv2.imwrite('./data/img_{}.png'.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
+            cv2.imwrite('./data/img_{}.png'.format(self.frame_id), self.frame)
+        if self.save_video:
+            self.video_writer.write(self.frame)
+            # stream_frame = cv2.resize(self.frame, (128, 128))
+            # stream_frame = cv2.cvtColor(stream_frame, cv2.COLOR_BGR2GRAY)
+            stream_frame = self.frame.dumps()
+            self.streambuffer.put(stream_frame)
         # self.node.get_logger().debug("Frame {} received".format(self.frame_id))
         # cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
         # self.node.get_logger().debug("Frame {} saved".format(self.frame_id))
@@ -99,3 +127,7 @@ class Camera:
                 .reshape([1280, 720, 3])
         )
         exit(0)
+
+    def stop(self):
+        if self.save_video:
+            self.video_writer.release()

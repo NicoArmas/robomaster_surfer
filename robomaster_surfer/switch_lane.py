@@ -23,7 +23,7 @@ SAVE_VIDEO = True
 EPSILON = 0.01
 
 
-class Lane():
+class Lane:
 
     def __init__(self, id, name, pos):
 
@@ -106,7 +106,7 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 600, save_data=SAVE_VIDEO)
+        self.camera = Camera(self, 600, save_data=False, save_video=True)
         self.is_saving = False
 
         self.init_theta = None
@@ -186,7 +186,7 @@ class ControllerNode(Node):
         if self.camera.frame is None or self.pose is None:
             return
 
-        self.get_logger().info(str(self.state))
+        # self.get_logger().info(str(self.state))
 
         if self.state == State.FORWARD:
             if self.sensed_front_obstacles():
@@ -197,13 +197,13 @@ class ControllerNode(Node):
                 self.ang_vel=self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
-        self.get_logger().info(str(self.state))
+        # self.get_logger().info(str(self.state))
 
         if self.state == State.DECIDING:
             self.next_lane=self.lane_to_reach()
             self.state=State.CHECKING
 
-        self.get_logger().info(str(self.state))
+        # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
             if not self.sensed_lat_obstacles():
@@ -224,8 +224,8 @@ class ControllerNode(Node):
                 self.ang_vel=self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
-        self.get_logger().info(str(self.state))
-        self.get_logger().info(str(''))
+        # self.get_logger().info(str(self.state))
+        # self.get_logger().info(str(''))
 
 
 
@@ -267,6 +267,7 @@ def main():
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
+        node.camera.stop()
         pass
 
     # Ensure the Thymio is stopped before exiting
