@@ -27,7 +27,7 @@ class ConvolutionalEncoder(nn.Module):
         """
         super(ConvolutionalEncoder, self).__init__()
         self.dropout = nn.Dropout(dropout_rate)
-        self.conv0 = nn.Conv2d(1, 16, 3)
+        self.conv0 = nn.Conv2d(3, 16, 3)
         self.conv1 = nn.Conv2d(16, 32, 3)
         self.conv2 = nn.Conv2d(32, 64, 3, stride=2)
         self.conv3 = nn.Conv2d(64, 128, 6, stride=2, padding=1)

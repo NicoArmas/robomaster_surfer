@@ -45,7 +45,7 @@ class Camera:
         self.save_preds = save_preds
         self.prediction = None
         self._video_decoder = libmedia_codec.H264Decoder()
-        self.frame_client = FrameClient('192.168.122.1', 5555, self.streambuffer,
+        self.frame_client = FrameClient('100.99.238.59', 5555, self.streambuffer,
                                         self.anomaly_buffer, self.move_buffer, logger=self.node.get_logger())
         self.frame_client.start()
 
@@ -75,9 +75,9 @@ class Camera:
             cv2.imwrite('./data/img_{}.png'.format(self.frame_id), self.frame)
         if self.save_video:
             self.video_writer.write(self.frame)
-            # stream_frame = cv2.resize(self.frame, (128, 128))
+            stream_frame = cv2.resize(self.frame, (128, 128))
             # stream_frame = cv2.cvtColor(stream_frame, cv2.COLOR_BGR2GRAY)
-            stream_frame = self.frame.dumps()
+            stream_frame = cv2.imencode('.png', stream_frame)[1].dumps()
             self.streambuffer.put(stream_frame)
         # self.node.get_logger().debug("Frame {} received".format(self.frame_id))
         # cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
@@ -131,3 +131,5 @@ class Camera:
     def stop(self):
         if self.save_video:
             self.video_writer.release()
+            self.frame_client.close()
+            self.frame_client.join()

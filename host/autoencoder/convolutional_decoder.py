@@ -17,7 +17,7 @@ class ConvolutionalDecoder(nn.Module):
         self.deconv0 = nn.ConvTranspose2d(128, 64, 6, stride=2)
         self.deconv1 = nn.ConvTranspose2d(64, 32, 3, stride=2)
         self.deconv2 = nn.ConvTranspose2d(32, 16, 3)
-        self.deconv3 = nn.ConvTranspose2d(16, 1, 3)
+        self.deconv3 = nn.ConvTranspose2d(16, 3, 3)
 
     def forward(self, x):
         """

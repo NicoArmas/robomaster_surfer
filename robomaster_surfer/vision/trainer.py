@@ -246,7 +246,7 @@ class Trainer:
             "empty_center": 3,
             "empty_left": 3,
             "empty_right": 3,
-            "stocazzo": 60,
+            "obstacles": 60,
         }
         with torch.no_grad():
             for i, (data, label) in enumerate(tqdm(test_loader)):
@@ -272,7 +272,7 @@ class Trainer:
 
 def main():
     batch_size = 32
-    epochs = 100
+    epochs = 200
     lr = 1e-4
     dropout = 0
     train_set = LaneDataset('robomaster_surfer/vision/data/preprocessed')
@@ -288,14 +288,14 @@ def main():
                                               pin_memory=True, shuffle=False)
 
     input_size = output_size = (128, 128)
-    for hidden_size in [8]:
+    for hidden_size in [16]:
 
         model = Autoencoder(input_size, hidden_size, output_size,
                             convolutional=True, dropout_rate=dropout,
                             bottleneck_activation=None).to(DEVICE)
 
         wandb_cfg = {
-            "project": "robomaster_surfer",
+            "project": "robomaster_surfer_test_model",
             "entity": "axhyra",
             "name": "autoencoder",
             "group": f'bottleneck:{hidden_size}',
@@ -313,7 +313,7 @@ def main():
             "run_number": 0,
             "denoise": False,
             "batch_size": batch_size,
-            "use_wandb": False,
+            "use_wandb": True,
             "wandb_cfg": wandb_cfg,
             "run_name": f'bottleneck_{hidden_size}',
         }

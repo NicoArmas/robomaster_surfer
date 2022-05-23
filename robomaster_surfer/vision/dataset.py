@@ -28,7 +28,7 @@ class LaneDataset(Dataset):
     def __getitem__(self, idx):
         img, label = self.samples[idx]
 
-        img = cv2.imread(f'{self.data_dir}/{label}/{img}')[:, :, 0]
+        img = cv2.imread(f'{self.data_dir}/{label}/{img}')
 
         if self.transform is not None:
             img = self.transform(img)

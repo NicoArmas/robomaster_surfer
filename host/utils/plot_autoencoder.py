@@ -39,38 +39,40 @@ def plot_stages(autoencoder, data, save=False, plot=True, path=None, get_frame=F
     :param plot: if True, the plot will be shown. If False, it will be saved, defaults to True (optional)
     :param path: the path to the dataset
     """
-    fig = plt.figure(figsize=(20, 20))
-    fig.subplot(2, 2, 1)
-    fig.title('input')
-    fig.imshow(data[0].cpu().numpy(), cmap='gray')
-    fig.axis('off')
-    fig.subplot(2, 2, 2)
-    fig.title('latent space')
+    plt.figure(figsize=(20, 20))
+    plt.subplot(2, 2, 1)
+    plt.title('input')
+    plt.imshow(cv2.cvtColor(data.cpu().permute(1, 2, 0).numpy(), cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.subplot(2, 2, 2)
+    plt.title('latent space')
     autoencoder.eval()
     with torch.no_grad():
         encoded, decoded = autoencoder(torch.unsqueeze(data, 0))
     new_shape = get_shape(encoded[0].shape[0])
-    fig.imshow(encoded[0].cpu().numpy().reshape(new_shape), cmap='viridis')
-    fig.axis('off')
-    fig.subplot(2, 2, 3)
-    fig.title('decoded')
-    fig.imshow(decoded[0][0].cpu().numpy(), cmap='gray')
-    fig.axis('off')
-    fig.subplot(2, 2, 4)
-    fig.title('Reconstruction error')
-    fig.imshow(data[0].cpu().numpy() - decoded[0][0].cpu().numpy(), vmin=0, vmax=1, cmap="viridis")
-    fig.axis('off')
+    plt.imshow(encoded[0].cpu().numpy().reshape(new_shape), cmap='viridis')
+    plt.axis('off')
+    plt.subplot(2, 2, 3)
+    plt.title('decoded')
+    plt.imshow(cv2.cvtColor(decoded[0].cpu().permute(1, 2, 0).numpy(), cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.subplot(2, 2, 4)
+    plt.title('Reconstruction error')
+    image = cv2.cvtColor(data.cpu().permute(1, 2, 0).numpy(), cv2.COLOR_RGB2GRAY)
+    reconstructed = cv2.cvtColor(decoded[0].cpu().permute(1, 2, 0).numpy(), cv2.COLOR_BGR2GRAY)
+    plt.imshow(image - reconstructed, vmin=0, vmax=1, cmap="viridis")
+    plt.axis('off')
 
     if save:
         if path is None:
             raise ValueError('Name must be specified if save is True')
-        fig.savefig(path)
+        plt.savefig(path)
     if get_frame:
-        frame = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        frame = np.fromstring(plt.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         return frame
     if plot:
-        fig.show()
+        plt.show()
     else:
-        fig.close()
+        plt.close()
 

@@ -42,9 +42,9 @@ class FrameHandler(socketserver.StreamRequestHandler):
         if not req:
             return
         content = self.rfile.read(content_size)
-        frame = pickle.loads(content)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame = cv2.resize(frame, (128, 128))
+        frame = cv2.imdecode(pickle.loads(content), cv2.IMREAD_COLOR)
+        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # frame = cv2.resize(frame, (128, 128))
         cv2.imwrite('frame.png', frame)
         frame = self.server.transform(frame).to('cuda')
         print(frame.shape)
@@ -55,10 +55,15 @@ class FrameHandler(socketserver.StreamRequestHandler):
         elif req == 'get_anomaly_map':
             self.server.model.eval()
             _, output = self.server.model(torch.unsqueeze(frame, 0))
-            anomaly_map = frame[0].cpu().detach() - output[0][0].cpu().detach()
-            # plt.figure(figsize=(20, 20))
-            # plt.imshow(anomaly_map, cmap='viridis')
-            # plt.savefig('anomaly_map.png')
+            anomaly_map = np.clip(frame[0].cpu().detach().numpy() - output[0][0].cpu().detach().numpy(), 0, 1)
+            anomaly_map = np.moveaxis([anomaly_map] * 3, 0, -1)
+            anomaly_map = (anomaly_map * 255).astype('uint8')
+            # fig = plt.figure(figsize=(20, 20))
+            # plt.imshow(anomaly_map, vmin=0, vmax=1, cmap='viridis')
+            # plt.axis('off')
+            # anomaly_map = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+            # anomaly_map = cv2.cvtColor(anomaly_map, cv2.COLOR_RGB2GRAY)
+            # plt.close(fig)
             # plt.close()
             # plt.figure(figsize=(20, 20))
             # plt.imshow(frame[0].cpu().detach(), cmap='gray')
@@ -68,7 +73,7 @@ class FrameHandler(socketserver.StreamRequestHandler):
             # plt.imshow(output[0][0].cpu().detach(), cmap='gray')
             # plt.savefig('output.png')
             # plt.close()
-            anomaly_map = anomaly_map.numpy().dumps()
+            anomaly_map = cv2.imencode('.png', anomaly_map)[1].dumps()
             self.wfile.write(pack_response(200, anomaly_map))
         else:
             pass
@@ -79,7 +84,7 @@ class FrameHandler(socketserver.StreamRequestHandler):
 
 if __name__ == '__main__':
     frame_server = socketserver.ThreadingTCPServer(('0.0.0.0', 5555), FrameHandler)
-    model = Autoencoder((128, 128), 8, (128, 128),
+    model = Autoencoder((128, 128), 16, (128, 128),
                         convolutional=True, dropout_rate=0,
                         bottleneck_activation=None).to('cuda')
     model.load_state_dict(torch.load('model.pt'))

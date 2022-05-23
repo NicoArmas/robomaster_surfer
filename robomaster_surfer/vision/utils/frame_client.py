@@ -26,6 +26,8 @@ class FrameClient(Process):
         self.move_buffer = move_buffer
         self.anomaly_buffer = anomaly_buffer
         self.logger = logger
+        # self.videowriter = cv2.VideoWriter('./data/video.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 20, (128, 128))
+        self.idx = 0
 
     def run(self):
         self.logger.info('FrameClient started')
@@ -91,16 +93,27 @@ class FrameClient(Process):
     def get_anomaly_map(self, frame):
         self.send_packet(b'get_anomaly_map', frame)
         res = self.get_response()
-        # res = cv2.imdecode(res, cv2.IMREAD_GRAYSCALE)
-        plt.figure(figsize=(20, 20))
-        plt.imshow(res, cmap='viridis')
-        plt.savefig('anomaly_map.png')
-        plt.close()
+        res = cv2.imdecode(res, cv2.IMREAD_GRAYSCALE)
+        # plt.figure(figsize=(20, 20))
+        # plt.imshow(res, vmin=0, vmax=1, cmap='viridis')
+        # plt.savefig('anomaly_map.png')
+        # plt.close()
+        # f = cv2.imread('anomaly_map.png')
+        # self.videowriter.write(res)
+        cv2.imwrite(f'./data/anomaly_map_{self.idx}.png', res)
+        self.idx += 1
         print('anomaly map saved')
         self.disconnect()
         return res
 
+    def close(self) -> None:
+        # self.videowriter.release()
+        self.disconnect()
+        self.logger.info('FrameClient closed')
+        super().close()
+
     def __exit__(self):
+        # self.videowriter.release()
         if self.connected:
             self.disconnect()
 
