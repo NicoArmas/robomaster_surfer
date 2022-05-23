@@ -1,22 +1,25 @@
-import _pickle
-import json
-import os.path
 import pickle
 import socket
-from multiprocessing import Process
-
-import matplotlib.pyplot as plt
-import requests
 import time
-
 import cv2
-import numpy as np
+from multiprocessing import Process
 
 HEADERSIZE = 10
 
 
 class FrameClient(Process):
     def __init__(self, host, port, frame_buffer, move_buffer, anomaly_buffer=None, logger=None):
+        """
+        This function initializes the class by setting the host, port, socket, connected, frame_buffer, move_buffer,
+        anomaly_buffer, logger, and idx variables
+
+        :param host: the IP address of the server
+        :param port: the port number to connect to
+        :param frame_buffer: a queue of frames to be sent to the client
+        :param move_buffer: a queue of moves to send to the server
+        :param anomaly_buffer: This is a buffer that will be used to store the anomaly data
+        :param logger: a logger object to log messages to
+        """
         super().__init__()
         self.host = host
         self.port = port
@@ -26,10 +29,12 @@ class FrameClient(Process):
         self.move_buffer = move_buffer
         self.anomaly_buffer = anomaly_buffer
         self.logger = logger
-        # self.videowriter = cv2.VideoWriter('./data/video.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 20, (128, 128))
         self.idx = 0
 
     def run(self):
+        """
+        It waits for a frame to be available in the frame buffer, then sends it to the server and waits for a response
+        """
         self.logger.info('FrameClient started')
         self.connect()
         while True:
@@ -49,16 +54,28 @@ class FrameClient(Process):
                 self.move_buffer.put(res)
 
     def connect(self):
+        """
+        If the socket is not connected, connect it to the host and port specified in the constructor
+        """
         if not self.connected:
             self.sock.connect((self.host, self.port))
             self.connected = True
 
     def disconnect(self):
+        """
+        It closes the socket and then creates a new socket.
+        """
         self.sock.close()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected = False
 
     def send_packet(self, header, content):
+        """
+        It sends a packet to the server
+
+        :param header: the header of the packet, which is a string
+        :param content: the content of the packet
+        """
         self.logger.info(f'sending packet {header}')
         packet = header + b'\t' + bytes(str(len(content)), 'utf-8') + b'\n' + content
         if not self.connected:
@@ -66,6 +83,10 @@ class FrameClient(Process):
         self.sock.sendall(packet)
 
     def get_response(self):
+        """
+        It receives a response from the server, and if the response code is 200, it receives the data and unpickles it
+        :return: The data is being returned as a pickled object.
+        """
         if not self.connected:
             self.connect()
 
@@ -84,6 +105,12 @@ class FrameClient(Process):
             return None
 
     def get_move(self, frame):
+        """
+        It sends a frame to the server, waits for a response, and then disconnects
+
+        :param frame: a numpy array of shape (1, 3, 84, 84)
+        :return: The response from the server.
+        """
         self.send_packet(b'get_movement', frame)
         self.logger.info('sent frame')
         res = self.get_response()
@@ -91,15 +118,15 @@ class FrameClient(Process):
         return res
 
     def get_anomaly_map(self, frame):
+        """
+
+
+        :param frame: the frame to be processed
+        :return: The anomaly map is being returned.
+        """
         self.send_packet(b'get_anomaly_map', frame)
         res = self.get_response()
         res = cv2.imdecode(res, cv2.IMREAD_GRAYSCALE)
-        # plt.figure(figsize=(20, 20))
-        # plt.imshow(res, vmin=0, vmax=1, cmap='viridis')
-        # plt.savefig('anomaly_map.png')
-        # plt.close()
-        # f = cv2.imread('anomaly_map.png')
-        # self.videowriter.write(res)
         cv2.imwrite(f'./data/anomaly_map_{self.idx}.png', res)
         self.idx += 1
         print('anomaly map saved')
@@ -107,57 +134,16 @@ class FrameClient(Process):
         return res
 
     def close(self) -> None:
-        # self.videowriter.release()
+        """
+        The function closes the connection to the server and logs the action
+        """
         self.disconnect()
         self.logger.info('FrameClient closed')
         super().close()
 
     def __exit__(self):
-        # self.videowriter.release()
+        """
+        If the object is connected, disconnect it
+        """
         if self.connected:
             self.disconnect()
-
-    # def frame_client(self):
-    #     """
-    #     It connects to the server, receives the message, unpickles it, and writes it to a file
-    #
-    #     :param host: The IP address of the server, defaults to 192.168.122.96 (optional)
-    #     :param port: The port to which the server is listening, defaults to 5555 (optional)
-    #     """
-    #     count = 0
-    #     full_msg = b''
-    #     new_msg = True
-    #     video_writer = cv2.VideoWriter('./frames/video.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
-    #     try:
-    #         while True:
-    #             if new_msg:
-    #                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #                 sock.connect((self.host, self.port))
-    #             msg = sock.recv(1024)
-    #             try:
-    #                 if new_msg and msg:
-    #                     msglen = int(msg[:HEADERSIZE])
-    #                     new_msg = False
-    #             except ValueError:
-    #                 pass
-    #
-    #             full_msg += msg
-    #
-    #             if len(full_msg) - HEADERSIZE == msglen:
-    #                 frame = pickle.loads(full_msg[HEADERSIZE:])
-    #                 frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-    #                 # cv2.imwrite(f'frames/frame{count}.jpg', frame)
-    #                 video_writer.write(frame)
-    #                 count += 1
-    #                 new_msg = True
-    #                 full_msg = b''
-    #                 sock.close()
-    #     except KeyboardInterrupt:
-    #         video_writer.release()
-
-
-if __name__ == '__main__':
-    # if not os.path.exists('frames'):
-    #     os.mkdir('frames')
-    # frame_client()
-    pass
