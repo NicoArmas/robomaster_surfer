@@ -1,8 +1,12 @@
+import subprocess
+import shlex
+
 try:
     import sim
 except:
     pass
 import time
+import os
 
 from mazeGenerator import generate_lab, state_from_row
 import argparse
@@ -56,8 +60,27 @@ def place_obstacles(obs, handlers, switcher_count, offset_world, offset_blocks, 
     return tile_obstacles
 
 
-def main(clientID):
+def shell_source(script):
+    """
+    Sometime you want to emulate the action of "source" in bash,
+    settings some environment variables. Here is a way to do it.
+    """
 
+    pipe = subprocess.Popen(". %s && env -0" % script, stdout=subprocess.PIPE, shell=True, executable='/bin/bash')
+    output = pipe.communicate()[0].decode('utf-8')
+    output = output[:-1]  # fix for index out for range in 'env[ line[0] ] = line[1]'
+
+    env = {}
+    # split using null char
+    for line in output.split('\x00'):
+        line = line.split('=', 1)
+        # print(line)
+        env[line[0]] = line[1]
+
+    os.environ.update(env)
+
+
+def main(clientID):
     # Load robomaster scene
     sim.simxLoadScene(clientID,
                       "/home/usi/dev_ws/src/robomaster_surfer/scenes/rm_surfer.ttt",
@@ -66,6 +89,16 @@ def main(clientID):
 
     # Start simulation
     sim.simxStartSimulation(clientID, sim.simx_opmode_oneshot)
+
+    shell_source('/home/usi/dev_ws/install/setup.bash')
+
+    # Start the robomaster ros bridge
+    subprocess.Popen(
+        "ros2 launch robomaster_ros main.launch model:=s1 name:=RoboMaster serial_number:=RM0001 video_resolution:=720",
+        shell=True, executable='/bin/bash')
+
+    # Start the roboaster controller
+    subprocess.Popen("ros2 launch robomaster_surfer lane_switcher.launch.py", shell=True, executable='/bin/bash')
 
     if clientID != -1:
         # Get Handlers of important objects
