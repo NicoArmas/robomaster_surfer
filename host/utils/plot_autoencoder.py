@@ -58,9 +58,9 @@ def plot_stages(autoencoder, data, save=False, plot=True, path=None, get_frame=F
     plt.axis('off')
     plt.subplot(2, 2, 4)
     plt.title('Reconstruction error')
-    image = cv2.cvtColor(data.cpu().permute(1, 2, 0).numpy(), cv2.COLOR_RGB2GRAY)
-    reconstructed = cv2.cvtColor(decoded[0].cpu().permute(1, 2, 0).numpy(), cv2.COLOR_BGR2GRAY)
-    plt.imshow(image - reconstructed, vmin=0, vmax=1, cmap="viridis")
+    image = cv2.cvtColor(data.cpu().permute(1, 2, 0).numpy(), cv2.COLOR_BGR2RGB)
+    reconstructed = cv2.cvtColor(decoded[0].cpu().permute(1, 2, 0).numpy(), cv2.COLOR_BGR2RGB)
+    plt.imshow(image - reconstructed, vmin=0, vmax=1)
     plt.axis('off')
 
     if save:

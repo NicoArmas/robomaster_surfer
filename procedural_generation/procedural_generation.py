@@ -1,5 +1,4 @@
 import subprocess
-import shlex
 
 try:
     import sim

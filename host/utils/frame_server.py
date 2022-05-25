@@ -52,9 +52,7 @@ class FrameHandler(socketserver.StreamRequestHandler):
         elif req == 'get_anomaly_map':
             self.server.model.eval()
             _, output = self.server.model(torch.unsqueeze(frame, 0))
-            anomaly_map = np.clip(frame[0].cpu().detach().numpy() - output[0][0].cpu().detach().numpy(), 0, 1)
-            anomaly_map = np.moveaxis([anomaly_map] * 3, 0, -1)
-            anomaly_map = (anomaly_map * 255).astype('uint8')
+            anomaly_map = np.moveaxis((np.clip(frame.cpu().detach().numpy() - output[0].cpu().detach().numpy(), 0, 1) * 255).astype(np.uint8), 0, -1)
             anomaly_map = cv2.imencode('.png', anomaly_map)[1].dumps()
             self.wfile.write(pack_response(200, anomaly_map))
         else:
@@ -66,7 +64,7 @@ class FrameHandler(socketserver.StreamRequestHandler):
 
 if __name__ == '__main__':
     frame_server = socketserver.ThreadingTCPServer(('0.0.0.0', 5555), FrameHandler)
-    model = Autoencoder((128, 128), 16, (128, 128),
+    model = Autoencoder((128, 128), 32, (128, 128),
                         convolutional=True, dropout_rate=0,
                         bottleneck_activation=None).to('cuda')
     model.load_state_dict(torch.load('model.pt'))
@@ -74,6 +72,7 @@ if __name__ == '__main__':
     frame_server.model = model
     frame_server.transform = transforms.ToTensor()
     try:
+        print("Started server...")
         frame_server.serve_forever()
     except KeyboardInterrupt:
         frame_server.shutdown()

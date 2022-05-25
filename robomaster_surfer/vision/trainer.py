@@ -25,7 +25,8 @@ class Trainer:
 
     def __init__(self, autoencoder, train_loader, val_loader, test_loader, epochs=100, lr=1e-3,
                  loss_fn=nn.MSELoss(), optimizer=optim.Adam, run_number=0, denoise=False, noise_factor=0, split=0,
-                 batch_size=64, samples_per_epoch=None, run_name=None, wandb_cfg=None, use_wandb=False):
+                 batch_size=64, samples_per_epoch=None, run_name=None, wandb_cfg=None,
+                 use_wandb=False, save_checkpoints=True):
         """
         This function initializes the class with the following parameters:
 
@@ -86,6 +87,7 @@ class Trainer:
         self.run_name = run_name if run_name is not None else f'{cur_time}_run_{run_number}'
         self.use_wandb = use_wandb
         self.wandb_cfg = wandb_cfg
+        self.save_checkpoints = save_checkpoints
 
     def fit(self, test=True, test_path=None, overwrite=False):
         """
@@ -153,8 +155,23 @@ class Trainer:
             "run_number": run_number,
             "split": split,
         }
+        best_val_loss = np.inf
 
-        with tqdm(range(epochs), total=epochs, unit='epoch') as tepoch:
+        if os.path.exists(f"{run_name}_checkpoint.pt"):
+            resume_dict = torch.load(f"{run_name}_checkpoint.pt")
+            autoencoder.load_state_dict(resume_dict["model_state_dict"])
+            optimizer.load_state_dict(resume_dict["optimizer_state_dict"])
+            best_val_loss = resume_dict["best_val_loss"]
+            epoch = resume_dict["epoch"]
+            wandb.config.update({"epoch": epoch})
+            wandb.config.update({"best_val_loss": best_val_loss})
+            wandb.config.update({"resume": True})
+            print("Loaded checkpoints")
+        else:
+            epoch = 0
+            wandb.config.update({"resume": False})
+
+        with tqdm(range(epochs)[epoch:], total=epochs, unit='epoch') as tepoch:
             for epoch in tepoch:
                 mse_loss = 0
                 mae_loss = 0
@@ -225,6 +242,25 @@ class Trainer:
                                                    Validation_MAE=np.mean(v_mae))
 
                     scheduler.step(np.mean(v_mse))
+                    # save checkpoint
+                    if np.mean(v_mse) < best_val_loss:
+                        best_val_loss = np.mean(v_mse)
+                        torch.save(autoencoder.state_dict(),
+                                   f'{self.run_name}_best_val_loss.pth')
+                        torch.save(optimizer.state_dict(),
+                                   f'{self.run_name}_best_val_loss_optimizer.pth')
+                        torch.save(scheduler.state_dict(),
+                                   f'{self.run_name}_best_val_loss_scheduler.pth')
+
+                    # save checkpoint to resume training
+                    resume_dict = {
+                        'epoch': epoch,
+                        'best_val_loss': best_val_loss,
+                        'state_dict': autoencoder.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'scheduler': scheduler.state_dict()
+                    }
+                    torch.save(resume_dict, f'{self.run_name}_checkpoint.pth')
 
             with torch.no_grad():
                 autoencoder.threshold = np.mean(thresh_losses) + np.std(thresh_losses)
@@ -288,7 +324,7 @@ def main():
                                               pin_memory=True, shuffle=False)
 
     input_size = output_size = (128, 128)
-    for hidden_size in [16]:
+    for hidden_size in [32]:
 
         model = Autoencoder(input_size, hidden_size, output_size,
                             convolutional=True, dropout_rate=dropout,
@@ -316,6 +352,7 @@ def main():
             "use_wandb": True,
             "wandb_cfg": wandb_cfg,
             "run_name": f'bottleneck_{hidden_size}',
+            "save_checkpoints": True,
         }
 
         trainer = Trainer(**trainer_cfg)

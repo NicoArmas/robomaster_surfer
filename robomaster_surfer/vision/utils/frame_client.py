@@ -126,7 +126,7 @@ class FrameClient(Process):
         """
         self.send_packet(b'get_anomaly_map', frame)
         res = self.get_response()
-        res = cv2.imdecode(res, cv2.IMREAD_GRAYSCALE)
+        res = cv2.imdecode(res, cv2.IMREAD_COLOR)
         cv2.imwrite(f'./data/anomaly_map_{self.idx}.png', res)
         self.idx += 1
         print('anomaly map saved')

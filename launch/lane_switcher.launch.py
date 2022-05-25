@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
     """
     ROS 2 launch files are special Python files that contain a function named
@@ -10,7 +11,7 @@ def generate_launch_description():
     object that represents the sets of actions that ROS should execute to start
     the system
     """
-    
+
     return LaunchDescription([
         # Create a launch argument. It can be used to supply values on the
         # command line, with this syntax:
@@ -19,21 +20,30 @@ def generate_launch_description():
             'rm_name',
             default_value='RoboMaster'
         ),
-        
+
+        DeclareLaunchArgument(
+            'server_ip',
+            default_value='100.100.150.14'
+        ),
+
+        DeclareLaunchArgument(
+            'server_port',
+            default_value='5555'
+        ),
+
         # Start a ROS node, equivalent to ros2 run <package_name> <executable_name>
         Node(
             package='robomaster_surfer',
             executable='lane_switcher',
-            
+
             # Launch controller_node in the namespace defined by the thymio_name
             # launch argument (default: /thymio0). Combined with the use of
             # relative topic names in controller_node, this provides a nice way
             # to specify which robot this node should control.
             namespace=LaunchConfiguration('rm_name'),
-            
+
             # Nodes launched from a launch file print their output to a log file
             # by default. Print to the console to help with debugging.
             output='screen'
         )
     ])
-
