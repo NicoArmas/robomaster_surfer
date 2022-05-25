@@ -10,16 +10,18 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from .utils import FrameClient
 import os
-import multiprocessing
-from multiprocessing import Queue
+from threading import Thread
+from multiprocessing import Queue, Process
 import threading
+
 
 # A camera is a device that can take pictures.
 # It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
 
 
 class Camera:
-    def __init__(self, node: Node, framebuffer_size: int, save_data=False, save_video=False, save_preds=False):
+    def __init__(self, node: Node, framebuffer_size: int, save_data=False, save_video=False, save_preds=False,
+                 stream_data=False):
         """
         This function initializes the class with the node and framebuffer size
 
@@ -31,6 +33,7 @@ class Camera:
         self.node = node
         self.save_data = save_data
         self.buf_size = framebuffer_size
+        self.stream_data = stream_data
         self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
         self.streambuffer = Queue()
         self.anomaly_buffer = Queue()
@@ -45,9 +48,11 @@ class Camera:
         self.save_preds = save_preds
         self.prediction = None
         self._video_decoder = libmedia_codec.H264Decoder()
-        self.frame_client = FrameClient('100.99.238.59', 5555, self.streambuffer,
-                                        self.anomaly_buffer, self.move_buffer, logger=self.node.get_logger())
-        self.frame_client.start()
+
+        if self.stream_data:
+            self.frame_client = FrameClient('100.100.150.14', 5555, self.streambuffer,
+                                            self.anomaly_buffer, self.move_buffer, logger=self.node.get_logger())
+            self.frame_client.start()
 
         if not os.path.exists('./data'):
             os.mkdir('./data')
@@ -75,6 +80,7 @@ class Camera:
             cv2.imwrite('./data/img_{}.png'.format(self.frame_id), self.frame)
         if self.save_video:
             self.video_writer.write(self.frame)
+        if self.stream_data:
             stream_frame = cv2.resize(self.frame, (128, 128))
             # stream_frame = cv2.cvtColor(stream_frame, cv2.COLOR_BGR2GRAY)
             stream_frame = cv2.imencode('.png', stream_frame)[1].dumps()
