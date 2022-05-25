@@ -49,7 +49,7 @@ def generate_lab(initial_state, size, start_from=6, gap=2):
 
     count = 0
     choice = 0
-    for i in range(start_from+1, len(environment)-1):
+    for i in range(start_from, len(environment)-1):
         if count == 0:
             choice = random.choice(dic[state_from_row(environment[i])])
         environment[i+1] = create_row(choice)
