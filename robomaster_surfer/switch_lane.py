@@ -100,7 +100,7 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 600, save_data=False, save_video=True)
+        self.camera = Camera(self, 600, save_data=False, save_video=SAVE_VIDEO)
         self.is_saving = False
 
         self.init_theta = None
