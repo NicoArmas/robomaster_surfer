@@ -28,14 +28,12 @@ class FrameClient(Process):
         self.frame_buffer = frame_buffer
         self.move_buffer = move_buffer
         self.anomaly_buffer = anomaly_buffer
-        self.logger = logger
         self.idx = 0
 
     def run(self):
         """
         It waits for a frame to be available in the frame buffer, then sends it to the server and waits for a response
         """
-        self.logger.info('FrameClient started')
         self.connect()
         while True:
             while self.frame_buffer.empty():
@@ -43,12 +41,10 @@ class FrameClient(Process):
             frame = self.frame_buffer.get()
 
             # if self.anomaly_buffer is not None:
-            #     self.logger.info('getting anomaly map from server')
             #     res = self.get_anomaly_map(frame)
             #     if res is not None:
             #         self.anomaly_buffer.put(res)
 
-            self.logger.info('getting move from server')
             res = self.get_move(frame)
             res = (int(res[0]), int(res[1]), int(res[2]))
             if res is not None:
@@ -77,7 +73,6 @@ class FrameClient(Process):
         :param header: the header of the packet, which is a string
         :param content: the content of the packet
         """
-        self.logger.info(f'sending packet {header}')
         packet = header + b'\t' + bytes(str(len(content)), 'utf-8') + b'\n' + content
         if not self.connected:
             self.connect()
@@ -96,12 +91,12 @@ class FrameClient(Process):
 
         if res_code == 200:
             data_length = int(self.sock.recv(HEADERSIZE).decode('utf-8'))
-            self.logger.info(f'data length is {data_length}')
+
             data = b''
             while len(data) < data_length:
                 data += self.sock.recv(1024)
-            self.logger.info('received data')
-            return pickle.loads(data)
+
+            return data
         else:
             return None
 
@@ -113,7 +108,7 @@ class FrameClient(Process):
         :return: The response from the server.
         """
         self.send_packet(b'get_movement', frame)
-        self.logger.info('sent frame')
+
         res = self.get_response()
         self.disconnect()
         return res
@@ -130,7 +125,7 @@ class FrameClient(Process):
         res = cv2.imdecode(res, cv2.IMREAD_COLOR)
         cv2.imwrite(f'./data/anomaly_map_{self.idx}.png', res)
         self.idx += 1
-        self.logger.info('Saved anomaly map')
+
         self.disconnect()
         return res
 
@@ -139,7 +134,7 @@ class FrameClient(Process):
         The function closes the connection to the server and logs the action
         """
         self.disconnect()
-        self.logger.info('FrameClient closed')
+
         super().close()
 
     def __exit__(self):

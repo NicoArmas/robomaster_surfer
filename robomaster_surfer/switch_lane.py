@@ -100,7 +100,8 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 600, save_data=False, save_video=SAVE_VIDEO, stream_data=True)
+        self.camera = Camera(self, 600, save_data=False,
+                             save_video=SAVE_VIDEO, stream_data=True)
         self.is_saving = False
 
         self.init_theta = None
@@ -160,10 +161,29 @@ class ControllerNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def sensed_front_obstacles(self):
+        self.get_logger().debug("AAA")
+        if not self.camera.move_buffer.empty():
+            a = self.camera.move_buffer.get()
+            self.get_logger().debug("MAFONNA")
+            return bool(a[self.current_lane.id])
         return False
 
     def lane_to_reach(self):
-        return self.lanes[1]
+        if not self.camera.move_buffer.empty():
+            a = self.camera.move_buffer.get()
+
+            self.get_logger().debug("DECIDO AAAA")
+
+            if self.current_lane.id == 0 or self.current_lane.id == 2:
+                if a[1] == 0:
+                    return self.lanes[1]
+            elif self.current_lane.id == 1:
+                if a[0] == 0:
+                    return self.lanes[0]
+                elif a[2] == 0:
+                    return self.lanes[2]
+
+        return self.current_lane
 
     def sensed_lat_obstacles(self):
         # dt = (self.get_clock().now().nanoseconds - self.timestamp) *1e-9
@@ -177,7 +197,7 @@ class ControllerNode(Node):
         Update linear and angular velocities and publish them to ROS.
         """
         # Wait until an image is available
-        if self.camera.frame is None or self.pose is None:
+        if self.camera.frame is None or self.pose is None and self.camera.move_buffer.empty():
             return
 
         # self.get_logger().info(str(self.state))
@@ -195,13 +215,14 @@ class ControllerNode(Node):
 
         if self.state == State.DECIDING:
             self.next_lane = self.lane_to_reach()
-            self.state = State.CHECKING
+            if self.next_lane != self.current_lane:
+                self.state = State.CHECKING
 
         # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
             if not self.sensed_lat_obstacles():
-                self.next_lane = self.lanes[0]  # ricordarsi di togliere
+                # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
                 self.ang_vel = self.pc.update_ang_vel(

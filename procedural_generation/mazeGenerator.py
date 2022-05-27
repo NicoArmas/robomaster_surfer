@@ -12,14 +12,14 @@ dic = {0: [0, 1, 2, 3, 4, 5, 6],
        6: [0, 6, 4, 2],
        7: []}
 
-dic = {0: [0, 1, 4, 5],
-       1: [4, 5, 0, 1],
-       2: [0],
-       3: [0, 1],
-       4: [0, 1, 4, 5],
-       5: [0, 5, 4, 1],
-       6: [0, 6, 4],
-       7: []}
+#dic = {0: [0, 1, 4, 5],
+#       1: [4, 5, 0, 1],
+#       2: [0],
+#       3: [0, 1],
+#       4: [0, 1, 4, 5],
+#       5: [0, 5, 4, 1],
+#       6: [0, 6, 4],
+#       7: []}
 
 
 def create_row(num):
@@ -56,7 +56,7 @@ def generate_lab(initial_state, size, start_from=6, gap=2):
 
         for j in range(len(environment[i+1])):
             if environment[i+1][j] == 0:
-                if random.random() > 0.9:
+                if random.random() > 1.9:
                     environment[i+1][j] = rc(coins, 1, [0.8, 0.15, 0.05])
 
         count += 1

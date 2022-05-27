@@ -251,7 +251,7 @@ if __name__ == '__main__':
                       sim.simx_opmode_blocking)
 
     # Start simulation
-    sim.simxStartSimulation(clientID, sim.simx_opmode_oneshot)
+    sim.simxStartSimulation(clientID, sim.simx_opmode_blocking)
 
     shell_source('/home/usi/dev_ws/install/setup.bash')
 
@@ -270,5 +270,5 @@ if __name__ == '__main__':
         # Stop simulation
         bridge.kill()
         controller.kill()
-        sim.simxStopSimulation(clientID, sim.simx_opmode_oneshot)
+        sim.simxStopSimulation(clientID, sim.simx_opmode_blocking)
         sim.simxFinish(clientID)

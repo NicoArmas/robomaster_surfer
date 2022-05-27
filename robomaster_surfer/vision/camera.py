@@ -11,7 +11,7 @@ from sensor_msgs.msg import Image
 from .utils import FrameClient
 import os
 from threading import Thread
-from multiprocessing import Queue, Process
+from multiprocessing import Queue
 import threading
 
 
