@@ -9,11 +9,14 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm.auto import tqdm
+import torch.functional as F
 
 import wandb
 from host.autoencoder import Autoencoder
+from host.obstacle_avoidance.obstacle_avoidance import ObstacleAvoidance
 from host.utils import compute_auc_score, plot_stages
-from dataset import LaneDataset
+from autoencoder_dataset import LaneDataset
+from obstacle_dataset import ObstacleDataset
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # WANDB_PROJECT = ""
@@ -21,12 +24,33 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 DEBUG = False
 
 
+def classification_metric(pred_labels, true_labels):
+    pred_labels = torch.ByteTensor(pred_labels.detach().cpu().numpy())
+    true_labels = torch.ByteTensor(true_labels.detach().cpu().numpy())
+
+    assert 1 >= pred_labels.all() >= 0
+    assert 1 >= true_labels.all() >= 0
+
+    # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
+    TP = torch.sum((pred_labels == 1) & (true_labels == 1))
+
+    # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
+    TN = torch.sum((pred_labels == 0) & (true_labels == 0))
+
+    # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
+    FP = torch.sum((pred_labels == 1) & (true_labels == 0))
+
+    # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
+    FN = torch.sum((pred_labels == 0) & (true_labels == 1))
+    return TP, TN, FP, FN
+
+
 class Trainer:
 
     def __init__(self, autoencoder, train_loader, val_loader, test_loader, epochs=100, lr=1e-3,
                  loss_fn=nn.MSELoss(), optimizer=optim.Adam, run_number=0, denoise=False, noise_factor=0, split=0,
                  batch_size=64, samples_per_epoch=None, run_name=None, wandb_cfg=None,
-                 use_wandb=False, save_checkpoints=True):
+                 use_wandb=False, save_checkpoints=True, task="anomaly detection"):
         """
         This function initializes the class with the following parameters:
 
@@ -88,6 +112,7 @@ class Trainer:
         self.use_wandb = use_wandb
         self.wandb_cfg = wandb_cfg
         self.save_checkpoints = save_checkpoints
+        self.task = task.lower()
 
     def fit(self, test=True, test_path=None, overwrite=False):
         """
@@ -117,6 +142,7 @@ class Trainer:
         self.train()
         torch.save(self.model.state_dict(), f"{self.run_name}.pt")
         if test:
+            self.model.load_state_dict(torch.load(f"{self.run_name}_best_val_acc.pt"))
             self.test(test_path)
         if self.use_wandb:
             model_artifact.add_file(f"{self.run_name}.pt")
@@ -146,7 +172,7 @@ class Trainer:
         optimizer = optimizer(autoencoder.parameters(), lr=lr)
         scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
         criterion = loss_fn
-        v_criterion = nn.MSELoss()
+        v_criterion = nn.CrossEntropyLoss()
         mae_criterion = nn.L1Loss()
         wandb.config = {
             "learning_rate": lr,
@@ -156,12 +182,14 @@ class Trainer:
             "split": split,
         }
         best_val_loss = np.inf
+        best_val_acc = 0
 
         if os.path.exists(f"{run_name}_checkpoint.pt"):
             resume_dict = torch.load(f"{run_name}_checkpoint.pt")
             autoencoder.load_state_dict(resume_dict["model_state_dict"])
             optimizer.load_state_dict(resume_dict["optimizer_state_dict"])
             best_val_loss = resume_dict["best_val_loss"]
+            best_val_acc = resume_dict["best_val_acc"]
             epoch = resume_dict["epoch"]
             wandb.config.update({"epoch": epoch})
             wandb.config.update({"best_val_loss": best_val_loss})
@@ -180,82 +208,94 @@ class Trainer:
                 samples = 0
 
                 with tqdm(train_loader, total=len(train_loader), unit='batch', leave=True) as tbatch:
-                    for data, _ in tbatch:
+                    for data, target in tbatch:
                         samples += data.size(0)
                         autoencoder.train()
                         data = data.to(DEVICE)
+                        target = target.to(DEVICE)
                         optimizer.zero_grad()
                         if denoise:
                             data_noisy = data
-                            encoded, decoded = autoencoder(data_noisy)
+                            decoded = autoencoder(data_noisy)
                         else:
-                            encoded, decoded = autoencoder(data)
-                        loss = criterion(decoded, data)
+                            decoded = autoencoder(data)
+                        loss = criterion(decoded, target)
                         losses.append(loss.item())
                         loss.backward()
                         optimizer.step()
                         mse_loss += loss.item()
 
                         with torch.no_grad():
-                            mae_l = mae_criterion(decoded, data).item()
+                            decoded_soft = torch.softmax(decoded, dim=1)
+                            mae_l = mae_criterion(decoded_soft, target).item()
                             mae_loss += mae_l
 
                         if self.use_wandb:
                             wandb.log({
                                 "step": samples / batch_size + epoch * samples_per_epoch / batch_size,
                                 "epoch": epoch,
-                                "Training MSE Loss": loss.item(),
+                                "Training CrossEntropy Loss": loss.item(),
                                 "Training MAE Loss": mae_l})
 
                         tepoch.set_postfix(
                             samples=f'{samples}/{samples_per_epoch}',
-                            MSE_Loss=mse_loss / ((samples / batch_size) + 1),
+                            CrossEntropy_Loss=mse_loss / ((samples / batch_size) + 1),
                             MAE_Loss=mae_loss / ((samples / batch_size) + 1),
                             batch=f'{(samples // batch_size)}/{int(math.ceil(samples_per_epoch / batch_size))}')
 
                         autoencoder.eval()
                         with torch.no_grad():
-                            thresh_losses.append(v_criterion(decoded, data).item())
+                            thresh_losses.append(v_criterion(decoded, target).item())
 
                 if epoch % 1 == 0:
                     autoencoder.eval()
                     with torch.no_grad():
                         v_mse = []
                         v_mae = []
+                        acc = []
                         autoencoder.eval()
                         with torch.no_grad():
-                            for j, (data, _) in enumerate(val_loader):
+                            for j, (data, target) in enumerate(val_loader):
                                 data = data.to(DEVICE)
-                                encoded, decoded = autoencoder(data)
+                                decoded = autoencoder(data)
+                                target = target.to(DEVICE)
 
-                                v_mse.append(criterion(decoded, data).item())
-                                v_mae.append(mae_criterion(decoded, data).item())
+                                v_mse.append(criterion(decoded, target).item())
+                                decoded_soft = torch.softmax(decoded, dim=1)
+                                accuracy = (decoded_soft.argmax(dim=1) == target.argmax(dim=1)).float().mean().item()
+                                v_mae.append(mae_criterion(decoded_soft, target).item())
+                                acc.append(accuracy)
 
                                 if self.use_wandb:
                                     wandb.log({
                                         "epoch": epoch,
-                                        "Validation MSE Loss": v_mse[-1],
-                                        "Validation MAE Loss": v_mae[-1]})
+                                        "Validation CrossEntropy Loss": v_mse[-1],
+                                        "Validation MAE Loss": v_mae[-1],
+                                        "Validation Accuracy": acc[-1]})
 
                                 tepoch.set_postfix(validation=True,
                                                    Validation_MSE=np.mean(v_mse),
-                                                   Validation_MAE=np.mean(v_mae))
+                                                   Validation_MAE=np.mean(v_mae),
+                                                   Validation_Accuracy=np.mean(acc))
 
                     scheduler.step(np.mean(v_mse))
                     # save checkpoint
-                    if np.mean(v_mse) < best_val_loss:
-                        best_val_loss = np.mean(v_mse)
-                        torch.save(autoencoder.state_dict(),
-                                   f'{self.run_name}_best_val_loss.pth')
-                        torch.save(optimizer.state_dict(),
-                                   f'{self.run_name}_best_val_loss_optimizer.pth')
-                        torch.save(scheduler.state_dict(),
-                                   f'{self.run_name}_best_val_loss_scheduler.pth')
+                    if self.task == 'anomaly detection':
+                        if np.mean(v_mse) < best_val_loss:
+                            best_val_loss = np.mean(v_mse)
+                            torch.save(autoencoder.state_dict(),
+                                       f'{self.run_name}_best_val_loss.pt')
 
+                    if self.task == 'classification':
+                        if np.mean(acc) > best_val_acc:
+                            best_val_acc = np.mean(acc)
+                            torch.save(autoencoder.state_dict(),
+                                       f'{self.run_name}_best_val_acc.pt')
                     # save checkpoint to resume training
                     resume_dict = {
                         'epoch': epoch,
                         'best_val_loss': best_val_loss,
+                        'best_val_acc': best_val_acc,
                         'state_dict': autoencoder.state_dict(),
                         'optimizer': optimizer.state_dict(),
                         'scheduler': scheduler.state_dict()
@@ -278,31 +318,38 @@ class Trainer:
 
         autoencoder.eval()
         auc = []
+        acc = []
         flags = {
-            "empty_center": 3,
-            "empty_left": 3,
-            "empty_right": 3,
-            "obstacles": 60,
+            "empty_center": 0,
+            "empty_left": 0,
+            "empty_right": 0,
+            "obstacles": 0,
         }
         with torch.no_grad():
             for i, (data, label) in enumerate(tqdm(test_loader)):
                 data = data.to(DEVICE)
-                encoded, decoded = autoencoder(data)
+                label = label.to(DEVICE)
+                decoded = autoencoder(data)
+                decoded_soft = torch.softmax(decoded, dim=1)
 
-                aucloss, threshold = compute_auc_score(decoded, data, return_threshold=True)
+                aucloss, threshold = compute_auc_score(decoded_soft, label, return_threshold=True)
+                accuracy = (decoded_soft.argmax(dim=1) == label.argmax(dim=1)).float().mean().item()
                 auc.append(aucloss)
+                acc.append(accuracy)
 
-                if np.any(flags):
-                    for d, cls in zip(data, label):
-                        if flags[cls]:
-                            plot_stages(autoencoder, d, save=True, plot=False, path=path.format(cls))
-                            if self.use_wandb:
-                                wandb.log({'image': wandb.Image(path.format(cls))})
-                            flags[cls] -= 1
+                if self.task == "anomaly detection":
+                    if np.any(flags):
+                        for d, cls in zip(data, label):
+                            if flags[cls]:
+                                plot_stages(autoencoder, d, save=True, plot=False, path=path.format(cls))
+                                if self.use_wandb:
+                                    wandb.log({'image': wandb.Image(path.format(cls))})
+                                flags[cls] -= 1
 
         print(f'\ntest set AUC Score: {np.mean(auc)}')
         if self.use_wandb:
             wandb.log({"Test AUC": np.mean(auc)})
+            wandb.log({"Test set Accuracy": np.mean(acc)})
         return np.mean(auc)
 
 
@@ -325,7 +372,6 @@ def main():
 
     input_size = output_size = (128, 128)
     for hidden_size in [32]:
-
         model = Autoencoder(input_size, hidden_size, output_size,
                             convolutional=True, dropout_rate=dropout,
                             bottleneck_activation=None).to(DEVICE)
@@ -360,5 +406,56 @@ def main():
         trainer.fit(test_path='./plots/{}.png')
 
 
+def train_obstacle_avoidance_model():
+    batch_size = 32
+    epochs = 200
+    lr = 1e-4
+    dropout = 0
+    train_set = ObstacleDataset('robomaster_surfer/vision/data/obstacle_avoidance')
+    train_set, valid_set = torch.utils.data.random_split(train_set, [int(len(train_set) * 0.9),
+                                                                     int(len(train_set) * 0.1)+1])
+    test_set = valid_set
+
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, num_workers=4,
+                                               pin_memory=True, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, num_workers=4,
+                                               pin_memory=True, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, num_workers=4,
+                                              pin_memory=True, shuffle=False)
+
+    input_size = output_size = (128, 128)
+    model = ObstacleAvoidance().to(DEVICE)
+
+    wandb_cfg = {
+        "project": "robomaster_surfer_test_model",
+        "entity": "axhyra",
+        "name": "autoencoder",
+        "group": f'ObstacleAvoidance',
+    }
+
+    trainer_cfg = {
+        "autoencoder": model,
+        "train_loader": train_loader,
+        "val_loader": valid_loader,
+        "test_loader": test_loader,
+        "epochs": epochs,
+        "lr": lr,
+        "loss_fn": nn.CrossEntropyLoss(),
+        "optimizer": optim.Adam,
+        "run_number": 0,
+        "denoise": False,
+        "batch_size": batch_size,
+        "use_wandb": True,
+        "wandb_cfg": wandb_cfg,
+        "run_name": f'ObstacleAvoidance',
+        "save_checkpoints": True,
+        "task": "classification",
+    }
+
+    trainer = Trainer(**trainer_cfg)
+
+    trainer.fit(test_path='./plots/{}.png')
+
+
 if __name__ == "__main__":
-    main()
+    train_obstacle_avoidance_model()
