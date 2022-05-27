@@ -8,6 +8,7 @@ import torch
 from torchvision import transforms
 
 from host.autoencoder import Autoencoder
+from host.obstacle_avoidance.obstacle_avoidance import ObstacleAvoidance
 
 HEADERSIZE = 10
 
@@ -47,9 +48,14 @@ class FrameHandler(socketserver.StreamRequestHandler):
         print(frame.shape)
 
         if req == 'get_movement':
-            response = np.array([0 if np.random.random() <= 0.5 else 1 for _ in range(9)]).dumps()
+            response = self.server.model(torch.unsqueeze(frame, 0))
+            response = torch.softmax(response.cpu().detach().numpy(), axis=1)
+            response = response.argmax(axis=1)
+            response = response.item()
+            response = bin(response).strip('0b')
             self.wfile.write(pack_response(200, response))
         elif req == 'get_anomaly_map':
+            self.wfile.write(pack_response(404, b'Not Found'))
             self.server.model.eval()
             _, output = self.server.model(torch.unsqueeze(frame, 0))
             anomaly_map = np.moveaxis((np.clip(frame.cpu().detach().numpy() - output[0].cpu().detach().numpy(), 0, 1) * 255).astype(np.uint8), 0, -1)
@@ -64,9 +70,10 @@ class FrameHandler(socketserver.StreamRequestHandler):
 
 if __name__ == '__main__':
     frame_server = socketserver.ThreadingTCPServer(('0.0.0.0', 5555), FrameHandler)
-    model = Autoencoder((128, 128), 32, (128, 128),
-                        convolutional=True, dropout_rate=0,
-                        bottleneck_activation=None).to('cuda')
+    # model = Autoencoder((128, 128), 32, (128, 128),
+    #                     convolutional=True, dropout_rate=0,
+    #                     bottleneck_activation=None).to('cuda')
+    model = ObstacleAvoidance().to('cuda')
     model.load_state_dict(torch.load('model.pt'))
     model.eval()
     frame_server.model = model

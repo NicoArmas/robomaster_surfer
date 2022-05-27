@@ -42,14 +42,15 @@ class FrameClient(Process):
                 time.sleep(1 / 20)  # RM frame rate is 20fps
             frame = self.frame_buffer.get()
 
-            if self.anomaly_buffer is not None:
-                self.logger.info('getting anomaly map from server')
-                res = self.get_anomaly_map(frame)
-                if res is not None:
-                    self.anomaly_buffer.put(res)
+            # if self.anomaly_buffer is not None:
+            #     self.logger.info('getting anomaly map from server')
+            #     res = self.get_anomaly_map(frame)
+            #     if res is not None:
+            #         self.anomaly_buffer.put(res)
 
             self.logger.info('getting move from server')
             res = self.get_move(frame)
+            res = (int(res[0]), int(res[1]), int(res[2]))
             if res is not None:
                 self.move_buffer.put(res)
 
