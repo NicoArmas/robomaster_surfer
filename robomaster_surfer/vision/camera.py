@@ -51,7 +51,7 @@ class Camera:
 
         if self.stream_data:
             self.frame_client = FrameClient('100.100.150.14', 5555, self.streambuffer,
-                                            self.anomaly_buffer, self.move_buffer, logger=self.node.get_logger())
+                                            self.move_buffer, self.anomaly_buffer, logger=self.node.get_logger())
             self.frame_client.start()
 
         if not os.path.exists('./data'):

@@ -268,7 +268,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("Interrupted!")
         # Stop simulation
-        bridge.kill()
-        controller.kill()
+        bridge.kill(9)
+        controller.kill(9)
         sim.simxStopSimulation(clientID, sim.simx_opmode_blocking)
         sim.simxFinish(clientID)

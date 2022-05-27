@@ -161,18 +161,15 @@ class ControllerNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def sensed_front_obstacles(self):
-        self.get_logger().debug("AAA")
         if not self.camera.move_buffer.empty():
             a = self.camera.move_buffer.get()
-            self.get_logger().debug("MAFONNA")
             return bool(a[self.current_lane.id])
         return False
 
     def lane_to_reach(self):
         if not self.camera.move_buffer.empty():
             a = self.camera.move_buffer.get()
-
-            self.get_logger().debug("DECIDO AAAA")
+            self.get_logger().info(str(a))
 
             if self.current_lane.id == 0 or self.current_lane.id == 2:
                 if a[1] == 0:
