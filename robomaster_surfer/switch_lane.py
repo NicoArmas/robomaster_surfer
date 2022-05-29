@@ -3,6 +3,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from os import system
 import sys
 from enum import Enum
 
@@ -10,6 +11,8 @@ import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+
+from multiprocessing import Manager
 
 from .vision import Camera
 
@@ -100,7 +103,10 @@ class ControllerNode(Node):
         self.timestamp = None
 
         self.pose = None
-        self.camera = Camera(self, 600, save_data=False,
+        manager = Manager()
+        self.last_decision = manager.Value("i", 1)
+
+        self.camera = Camera(self, 600, self.last_decision, save_data=False,
                              save_video=SAVE_VIDEO, stream_data=True)
         self.is_saving = False
 
@@ -161,24 +167,19 @@ class ControllerNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def sensed_front_obstacles(self):
-        if not self.camera.move_buffer.empty():
-            a = self.camera.move_buffer.get()
-            return bool(a[self.current_lane.id])
+        self.get_logger().info(str(self.last_decision.value))
+        if self.last_decision.value != 1:
+            return True
         return False
 
     def lane_to_reach(self):
-        if not self.camera.move_buffer.empty():
-            a = self.camera.move_buffer.get()
-            self.get_logger().info(str(a))
+        if self.last_decision.value != 1:
+            self.get_logger().info(str(self.last_decision.value))
 
-            if self.current_lane.id == 0 or self.current_lane.id == 2:
-                if a[1] == 0:
-                    return self.lanes[1]
-            elif self.current_lane.id == 1:
-                if a[0] == 0:
-                    return self.lanes[0]
-                elif a[2] == 0:
-                    return self.lanes[2]
+            if self.last_decision.value == 0:
+                return self.lanes[self.current_lane.id-1]
+            elif self.last_decision.value == 2:
+                return self.lanes[self.current_lane.id+1]
 
         return self.current_lane
 
@@ -218,6 +219,7 @@ class ControllerNode(Node):
         # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
+            self.pc.last_value = None
             if not self.sensed_lat_obstacles():
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
@@ -229,6 +231,7 @@ class ControllerNode(Node):
                     self.get_logger().debug("Finished switching, now should go straight")
                     self.current_lane = self.next_lane
                     self.state = State.FORWARD
+                    self.get_logger().info("Forward")
 
             else:
                 err = self.current_lane.pos_y - self.pose.y

@@ -4,6 +4,8 @@ import time
 import cv2
 from multiprocessing import Process
 
+from numpy import argmax
+
 HEADERSIZE = 10
 
 
@@ -35,11 +37,9 @@ class FrameClient(Process):
         """
         It waits for a frame to be available in the frame buffer, then sends it to the server and waits for a response
         """
-        #self.logger.info('FrameClient started')
+        self.logger.info('FrameClient started')
         self.connect()
         while True:
-            while self.frame_buffer.empty():
-                time.sleep(1 / 20)  # RM frame rate is 20fps
             frame = self.frame_buffer.get()
 
             # if self.anomaly_buffer is not None:
@@ -50,9 +50,9 @@ class FrameClient(Process):
 
             #self.logger.info('getting move from server')
             res = self.get_move(frame)
-            res = (int(res[0]), int(res[1]), int(res[2]))
+            self.logger.info("Received: "+str(res))
             if res is not None:
-                self.move_buffer.put(res)
+                self.move_buffer.value = int(res)
 
     def connect(self):
         """
@@ -94,6 +94,7 @@ class FrameClient(Process):
 
         res = self.sock.recv(HEADERSIZE)
         res_code = int(res.decode('utf-8'))
+        # self.logger.info(str(res_code))
 
         if res_code == 200:
             data_length = int(self.sock.recv(HEADERSIZE).decode('utf-8'))

@@ -20,7 +20,7 @@ import threading
 
 
 class Camera:
-    def __init__(self, node: Node, framebuffer_size: int, save_data=False, save_video=False, save_preds=False,
+    def __init__(self, node: Node, framebuffer_size: int, last_frame, save_data=False, save_video=False, save_preds=False,
                  stream_data=False):
         """
         This function initializes the class with the node and framebuffer size
@@ -37,7 +37,7 @@ class Camera:
         self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
         self.streambuffer = Queue()
         self.anomaly_buffer = Queue()
-        self.move_buffer = Queue()
+        self.move_buffer = last_frame
         self.framebuf_idx = 0
         self.frame_id = 0
         self.frame = None
