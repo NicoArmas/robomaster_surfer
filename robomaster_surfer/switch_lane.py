@@ -16,7 +16,7 @@ from multiprocessing import Manager
 
 from .vision import Camera
 
-SAVE_VIDEO = True
+SAVE_VIDEO = False
 EPSILON = 0.01
 
 
@@ -92,6 +92,8 @@ class ControllerNode(Node):
 
         self.switch_period = 1
 
+        self.cur_frame_id = None
+
         self.init_lane = self.lanes[1]
         self.current_lane = self.init_lane
         self.next_lane = None
@@ -124,6 +126,20 @@ class ControllerNode(Node):
 
         # self.steering_sequence = [0, 1, 2, 1, 2, 1, 0, 1, 0, 1, 2, 1]
         self.cur = 1
+
+    def check_col(self, col, frame):
+        tot = len(frame[col])
+        counted = 0
+        for i in range(720):
+            if frame[col][i][2] > 140 and frame[col][i][1] > 110:
+                counted += 1
+        return counted/tot > 0.8
+
+    def check_left(self, frame):
+        return self.check_col(0, frame)
+
+    def check_right(self, frame):
+        return self.check_col(-1, frame)
 
     def create_lanes(self):
         """
@@ -167,7 +183,6 @@ class ControllerNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def sensed_front_obstacles(self):
-        self.get_logger().info(str(self.last_decision.value))
         if self.last_decision.value != 1:
             return True
         return False
@@ -184,11 +199,20 @@ class ControllerNode(Node):
         return self.current_lane
 
     def sensed_lat_obstacles(self):
-        # dt = (self.get_clock().now().nanoseconds - self.timestamp) *1e-9
-        # if dt <= 1.5:
-        #     return True
-        # else:
-        return False
+        tmp = False
+        if self.cur_frame_id is None:
+            if self.current_lane.id == 0:
+                tmp = self.check_right(self.camera.frame)
+            elif self.current_lane.id == 2:
+                tmp = self.check_left(self.camera.frame)
+            else:
+                if self.next_lane.id == 0:
+                    tmp = self.check_left(self.camera.frame)
+                elif self.next_lane.id == 2:
+                    tmp = self.check_right(self.camera.frame)
+            if tmp:
+                self.cur_frame_id = self.camera.frame_id
+        return tmp
 
     async def update_callback(self):
         """
@@ -220,7 +244,7 @@ class ControllerNode(Node):
 
         if self.state == State.CHECKING:
             self.pc.last_value = None
-            if not self.sensed_lat_obstacles():
+            if not self.sensed_lat_obstacles() and self.cur_frame_id is None:
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
@@ -234,6 +258,9 @@ class ControllerNode(Node):
                     self.get_logger().info("Forward")
 
             else:
+                if self.camera.frame_id - self.cur_frame_id >= 15:
+                    self.cur_frame_id = None
+                    self.get_logger().info("VAI USI VAI")
                 err = self.current_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(err, self.dt)
                 self.ang_vel = self.pc.update_ang_vel(
