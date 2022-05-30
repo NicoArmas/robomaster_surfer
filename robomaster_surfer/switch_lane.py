@@ -83,7 +83,7 @@ class ControllerNode(Node):
         self.ang_vel = 0.0
 
         self.dt = 1/20
-        self.check_every = 50
+        self.check_every = 45
         self.cur_check_count = 0
         self.l_obs, self.r_obs = False, False
 
@@ -101,7 +101,7 @@ class ControllerNode(Node):
         self.current_lane = self.init_lane
         self.next_lane = None
         self.crossing_num = 0
-        self.pc = ProportionalController(kp=2.2)
+        self.pc = ProportionalController(kp=2.3)
 
         self.state = State(0)
 
@@ -163,7 +163,7 @@ class ControllerNode(Node):
         self.get_logger().info(str(l))
         self.get_logger().info(str(r))
         self.get_logger().info(" ")
-        return l > 0.7, r > 0.7
+        return l > 0.65, r > 0.65
 
     def check_left(self, frame):
         return self.check_col(0, frame)

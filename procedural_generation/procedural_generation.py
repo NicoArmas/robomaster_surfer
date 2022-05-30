@@ -177,7 +177,7 @@ def main(clientID):
                                                 offset_blocks, obstacle_size))
         switcher_count += 5
         for i in range(4):
-            obs = generate_lab(state_from_row(obs[-1]), 10, 2)
+            obs = generate_lab(state_from_row(obs[-1]), 10, 1)
             tiles_objects.append(place_obstacles(obs, handler_blocks, switcher_count, offset_world,
                                                  offset_blocks, obstacle_size))
             switcher_count += 5
