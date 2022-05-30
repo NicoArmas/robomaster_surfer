@@ -130,12 +130,14 @@ class ControllerNode(Node):
         self.cur = 1
 
     def check_col(self, col, frame):
-        tot = len(frame[col])
+
+        tot = len(frame)
+        #self.get_logger().info(str(tot))
         counted = 0
-        for i in range(720):
-            if i % 100 == 0:
-                self.get_logger().info(str(frame[col][i]))
-            if frame[col][i][2] > 130 and frame[col][i][0] > 55:
+        for i in range(tot):
+            # if i % 100 == 0:
+            #     self.get_logger().info(str(frame[i][col]))
+            if frame[i][col][2] > 130 and frame[i][col][0] > 55:
                 counted += 1
         self.get_logger().info(str(counted/tot))
         return counted/tot > 0.7
@@ -230,6 +232,7 @@ class ControllerNode(Node):
         # self.get_logger().info(str(self.state))
 
         if self.state == State.FORWARD:
+            
             if self.sensed_front_obstacles():
                 self.state = State.DECIDING
             else:
@@ -249,6 +252,7 @@ class ControllerNode(Node):
 
         if self.state == State.CHECKING:
             frame = self.camera.frame.copy()
+            
             cur_frame_id = self.camera.frame_id
             self.pc.last_value = None
             if self.switching or (self.cur_frame_id is None and not self.sensed_lat_obstacles(frame, cur_frame_id)):
