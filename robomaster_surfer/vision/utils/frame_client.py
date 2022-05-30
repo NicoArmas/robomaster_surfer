@@ -40,7 +40,8 @@ class FrameClient(Process):
         self.logger.info('FrameClient started')
         self.connect()
         while True:
-            frame = self.frame_buffer.get()
+            frame = self.frame_buffer[:]
+            frame = cv2.imencode('.png', frame)[1].dumps()
 
             # if self.anomaly_buffer is not None:
             #     self.logger.info('getting anomaly map from server')

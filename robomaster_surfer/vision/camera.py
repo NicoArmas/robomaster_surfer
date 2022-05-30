@@ -11,9 +11,10 @@ from sensor_msgs.msg import Image
 from .utils import FrameClient
 import os
 from threading import Thread
-from multiprocessing import Queue
+from multiprocessing import Queue, RawArray
 import threading
 
+import ctypes
 
 # A camera is a device that can take pictures.
 # It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
@@ -34,7 +35,13 @@ class Camera:
         self.save_data = save_data
         self.buf_size = framebuffer_size
         self.stream_data = stream_data
-        self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
+        self.framebuffer = np.zeros(
+            (framebuffer_size, 720, 1280, 3), dtype=np.uint8)
+
+        shared_array = RawArray(ctypes.c_double, 49152)
+        self.shared_array_np = np.ndarray(
+            (128, 128, 3), dtype=np.uint8, buffer=shared_array)
+
         self.streambuffer = Queue()
         self.anomaly_buffer = Queue()
         self.move_buffer = last_frame
@@ -50,7 +57,7 @@ class Camera:
         self._video_decoder = libmedia_codec.H264Decoder()
 
         if self.stream_data:
-            self.frame_client = FrameClient('100.100.150.14', 5555, self.streambuffer,
+            self.frame_client = FrameClient('100.100.150.14', 5555, self.shared_array_np,
                                             self.move_buffer, self.anomaly_buffer, logger=self.node.get_logger())
             self.frame_client.start()
 
@@ -64,7 +71,8 @@ class Camera:
 
         self.decoder = CvBridge()
         # Try this topic: camera/image_h264
-        self.node.create_subscription(Image, 'camera/image_raw', self.camera_raw_callback, 1)
+        self.node.create_subscription(
+            Image, 'camera/image_raw', self.camera_raw_callback, 1)
         # self.node.create_subscription(robomaster_msgs.msg.H264Packet, 'camera/image_h264', self.camera_callback, 1)
 
     async def camera_raw_callback(self, msg):
@@ -83,8 +91,9 @@ class Camera:
         if self.stream_data:
             stream_frame = cv2.resize(self.frame, (128, 128))
             # stream_frame = cv2.cvtColor(stream_frame, cv2.COLOR_BGR2GRAY)
-            stream_frame = cv2.imencode('.png', stream_frame)[1].dumps()
-            self.streambuffer.put(stream_frame)
+            # Copy data to our shared array.
+            np.copyto(self.shared_array_np, stream_frame)
+            # self.streambuffer.put(stream_frame)
         # self.node.get_logger().debug("Frame {} received".format(self.frame_id))
         # cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
         # self.node.get_logger().debug("Frame {} saved".format(self.frame_id))
@@ -102,12 +111,15 @@ class Camera:
         :param filename: the name of the file to save the video to
         :type filename: str
         """
-        buffer_to_empty = self.framebuffers[np.where(self.buffer_full == True)[0][0]]
-        w = cv2.VideoWriter(filename.format(self.video_idx), cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
+        buffer_to_empty = self.framebuffers[np.where(
+            self.buffer_full == True)[0][0]]
+        w = cv2.VideoWriter(filename.format(self.video_idx),
+                            cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
         for frame in self.framebuffer[buffer_to_empty]:
             w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
             # cv2.imwrite(path.format(i), cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-        self.node.get_logger().info(f'Saved buffer frames to {filename.format(self.video_idx)}')
+        self.node.get_logger().info(
+            f'Saved buffer frames to {filename.format(self.video_idx)}')
         w.release()
         self.buffer_full[buffer_to_empty] = False
         self.node.is_saving = False
@@ -119,7 +131,8 @@ class Camera:
         for frame_data in frames:
             (frame, width, height, ls) = frame_data
             if frame:
-                frame = np.fromstring(frame, dtype=np.ubyte, count=len(frame), sep='')
+                frame = np.fromstring(
+                    frame, dtype=np.ubyte, count=len(frame), sep='')
                 frame = (frame.reshape((height, width, 3)))
                 res_frame_list.append(frame)
         return res_frame_list
@@ -129,8 +142,8 @@ class Camera:
         self.node.get_logger().info(f'got frame: {msg}')
         in_frame = (
             np
-                .frombuffer(msg.data, np.uint8)
-                .reshape([1280, 720, 3])
+            .frombuffer(msg.data, np.uint8)
+            .reshape([1280, 720, 3])
         )
         exit(0)
 
