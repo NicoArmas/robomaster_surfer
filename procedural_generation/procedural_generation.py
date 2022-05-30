@@ -143,11 +143,11 @@ def main(clientID):
             wrp = (wall_pose[0] + 5, wall_pose[1] + 1.5, wall_pose[2])
             tp = (pos_tile[0] + 5, pos_tile[1], pos_tile[2])
             hanlder_wall_left = move_obstacle(clientID, hanlder_wall_left, wlp)
-            time.sleep(0.02)
+            time.sleep(0.03)
             hanlder_wall_right = move_obstacle(clientID, hanlder_wall_right, wrp)
-            time.sleep(0.02)
+            time.sleep(0.03)
             tile_handler = move_obstacle(clientID, tile_handler, tp)
-            time.sleep(0.02)
+            time.sleep(0.03)
 
             return tp, wlp, tile_handler, hanlder_wall_left, hanlder_wall_right
 
@@ -172,12 +172,12 @@ def main(clientID):
 
         tiles_objects = []
 
-        obs = generate_lab(0, 10, 2)
+        obs = generate_lab(0, 10, 3)
         tiles_objects.append(place_obstacles(obs, handler_blocks, switcher_count, offset_world,
                                                 offset_blocks, obstacle_size))
         switcher_count += 5
         for i in range(4):
-            obs = generate_lab(state_from_row(obs[-1]), 10, 0)
+            obs = generate_lab(state_from_row(obs[-1]), 10, 2)
             tiles_objects.append(place_obstacles(obs, handler_blocks, switcher_count, offset_world,
                                                  offset_blocks, obstacle_size))
             switcher_count += 5

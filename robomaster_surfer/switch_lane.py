@@ -37,7 +37,7 @@ class State(Enum):
 
 class ProportionalController:
 
-    def __init__(self, kp=2, kd=0.4):
+    def __init__(self, kp=2, kd=0.42):
         self.kp = kp
         self.kd = kd
         self.last_value = None
@@ -98,7 +98,7 @@ class ControllerNode(Node):
         self.current_lane = self.init_lane
         self.next_lane = None
         self.crossing_num = 0
-        self.pc = ProportionalController(kp=2)
+        self.pc = ProportionalController(kp=2.2)
 
         self.state = State(0)
 
@@ -133,7 +133,9 @@ class ControllerNode(Node):
         tot = len(frame[col])
         counted = 0
         for i in range(720):
-            if frame[col][i][2] > 140 and frame[col][i][0] > 65:
+            if i % 100 == 0:
+                self.get_logger().info(str(frame[col][i]))
+            if frame[col][i][2] > 130 and frame[col][i][0] > 55:
                 counted += 1
         self.get_logger().info(str(counted/tot))
         return counted/tot > 0.7
@@ -201,20 +203,20 @@ class ControllerNode(Node):
 
         return self.current_lane
 
-    def sensed_lat_obstacles(self):
+    def sensed_lat_obstacles(self, frame, frame_id):
         tmp = False
         if self.cur_frame_id is None:
             if self.current_lane.id == 0:
-                tmp = self.check_right(self.camera.frame)
+                tmp = self.check_right(frame)
             elif self.current_lane.id == 2:
-                tmp = self.check_left(self.camera.frame)
+                tmp = self.check_left(frame)
             else:
                 if self.next_lane.id == 0:
-                    tmp = self.check_left(self.camera.frame)
+                    tmp = self.check_left(frame)
                 elif self.next_lane.id == 2:
-                    tmp = self.check_right(self.camera.frame)
+                    tmp = self.check_right(frame)
             if tmp:
-                self.cur_frame_id = self.camera.frame_id
+                self.cur_frame_id = frame_id
         return tmp
 
     async def update_callback(self):
@@ -246,8 +248,10 @@ class ControllerNode(Node):
         # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
+            frame = self.camera.frame.copy()
+            cur_frame_id = self.camera.frame_id
             self.pc.last_value = None
-            if self.switching or self.cur_frame_id is None and not self.sensed_lat_obstacles():
+            if self.switching or (self.cur_frame_id is None and not self.sensed_lat_obstacles(frame, cur_frame_id)):
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
