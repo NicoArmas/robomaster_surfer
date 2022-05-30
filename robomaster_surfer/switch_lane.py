@@ -115,6 +115,8 @@ class ControllerNode(Node):
         self.init_theta = None
         self.theta = None
 
+        self.switching = False
+
         self.timestamp = self.get_clock().now().nanoseconds
 
         # Create a publisher for the topic 'cmd_vel'
@@ -131,9 +133,10 @@ class ControllerNode(Node):
         tot = len(frame[col])
         counted = 0
         for i in range(720):
-            if frame[col][i][2] > 140 and frame[col][i][1] > 110:
+            if frame[col][i][2] > 140 and frame[col][i][0] > 65:
                 counted += 1
-        return counted/tot > 0.8
+        self.get_logger().info(str(counted/tot))
+        return counted/tot > 0.7
 
     def check_left(self, frame):
         return self.check_col(0, frame)
@@ -244,17 +247,19 @@ class ControllerNode(Node):
 
         if self.state == State.CHECKING:
             self.pc.last_value = None
-            if not self.sensed_lat_obstacles() and self.cur_frame_id is None:
+            if self.switching or self.cur_frame_id is None and not self.sensed_lat_obstacles():
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
                 self.ang_vel = self.pc.update_ang_vel(
                     self.init_theta, self.theta)
+                self.switching = True
 
                 if abs(diff) <= EPSILON:
                     self.get_logger().debug("Finished switching, now should go straight")
                     self.current_lane = self.next_lane
                     self.state = State.FORWARD
+                    self.switching = False
                     self.get_logger().info("Forward")
 
             else:

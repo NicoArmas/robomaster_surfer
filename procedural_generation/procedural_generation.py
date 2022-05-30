@@ -171,8 +171,13 @@ def main(clientID):
         # Generate first 5 tiles obstacles
 
         tiles_objects = []
-        for i in range(5):
-            obs = generate_lab(0, 10, 3)
+
+        obs = generate_lab(0, 10, 2)
+        tiles_objects.append(place_obstacles(obs, handler_blocks, switcher_count, offset_world,
+                                                offset_blocks, obstacle_size))
+        switcher_count += 5
+        for i in range(4):
+            obs = generate_lab(state_from_row(obs[-1]), 10, 0)
             tiles_objects.append(place_obstacles(obs, handler_blocks, switcher_count, offset_world,
                                                  offset_blocks, obstacle_size))
             switcher_count += 5
