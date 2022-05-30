@@ -83,6 +83,9 @@ class ControllerNode(Node):
         self.ang_vel = 0.0
 
         self.dt = 1/20
+        self.check_every = 50
+        self.cur_check_count = 0
+        self.l_obs, self.r_obs = False, False
 
         self.num_lanes = 3
         self.corridor_size = 1.5
@@ -132,7 +135,7 @@ class ControllerNode(Node):
     def check_col(self, col, frame):
 
         tot = len(frame)
-        #self.get_logger().info(str(tot))
+        # self.get_logger().info(str(tot))
         counted = 0
         for i in range(tot):
             # if i % 100 == 0:
@@ -141,6 +144,26 @@ class ControllerNode(Node):
                 counted += 1
         self.get_logger().info(str(counted/tot))
         return counted/tot > 0.7
+
+    def double_check(self, frame):
+        tot = len(frame)
+
+        countedl = 0
+        countedr = 0
+        for i in range(tot):
+            # if i % 100 == 0:
+            #     self.get_logger().info(str(frame[i][col]))
+            if frame[i][-1][2] > 125 and frame[i][-1][0] > 55:
+                countedr += 1
+            if frame[i][0][2] > 125 and frame[i][0][0] > 55:
+                countedl += 1
+        l = countedl/tot
+        r = countedr/tot
+
+        self.get_logger().info(str(l))
+        self.get_logger().info(str(r))
+        self.get_logger().info(" ")
+        return l > 0.7, r > 0.7
 
     def check_left(self, frame):
         return self.check_col(0, frame)
@@ -205,18 +228,18 @@ class ControllerNode(Node):
 
         return self.current_lane
 
-    def sensed_lat_obstacles(self, frame, frame_id):
+    def sensed_lat_obstacles(self, frame_id):
         tmp = False
         if self.cur_frame_id is None:
             if self.current_lane.id == 0:
-                tmp = self.check_right(frame)
+                tmp = self.r_obs
             elif self.current_lane.id == 2:
-                tmp = self.check_left(frame)
+                tmp = self.l_obs
             else:
                 if self.next_lane.id == 0:
-                    tmp = self.check_left(frame)
+                    tmp = self.l_obs
                 elif self.next_lane.id == 2:
-                    tmp = self.check_right(frame)
+                    tmp = self.r_obs
             if tmp:
                 self.cur_frame_id = frame_id
         return tmp
@@ -230,9 +253,13 @@ class ControllerNode(Node):
             return
 
         # self.get_logger().info(str(self.state))
+        if self.cur_check_count % self.check_every == 0:
+            frame = self.camera.frame.copy()
+            self.l_obs, self.r_obs = self.double_check(frame)
+        self.cur_check_count += 1
 
         if self.state == State.FORWARD:
-            
+
             if self.sensed_front_obstacles():
                 self.state = State.DECIDING
             else:
@@ -251,11 +278,9 @@ class ControllerNode(Node):
         # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
-            frame = self.camera.frame.copy()
-            
-            cur_frame_id = self.camera.frame_id
+
             self.pc.last_value = None
-            if self.switching or (self.cur_frame_id is None and not self.sensed_lat_obstacles(frame, cur_frame_id)):
+            if self.switching or (self.cur_frame_id is None and not self.sensed_lat_obstacles(self.camera.frame_id)):
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
