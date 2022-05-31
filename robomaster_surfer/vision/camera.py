@@ -16,7 +16,7 @@ from .utils import FrameClient
 
 
 class Camera:
-    def __init__(self, node: Node, framebuffer_size: int, last_prediction,
+    def __init__(self, node: Node, last_prediction,
                  save_data=False, stream_data=False, get_anomaly=False):
         """
         This function is called when the node is initialized. It creates a subscription to the camera topic and a
@@ -33,20 +33,14 @@ class Camera:
         """
         self.node = node
         self.save_data = save_data
-        self.buf_size = framebuffer_size
         self.stream_data = stream_data
-        self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
-
         shared_array = RawArray(ctypes.c_uint8, 49152)
-        self.shared_array_np = np.ndarray((128, 128, 3), dtype=np.uint8, buffer=shared_array)
+        self.shared_array_np = np.ndarray(
+            (128, 128, 3), dtype=np.uint8, buffer=shared_array)
 
         self.last_prediction = last_prediction
-        self.framebuf_idx = 0
         self.frame_id = 0
         self.frame = None
-        self.buffer_full = [False] * 2
-        self.video_idx = 0
-        self.prediction = None
         self.get_anomaly = get_anomaly
 
         if get_anomaly:
@@ -65,7 +59,8 @@ class Camera:
             os.mkdir('./data')
 
         self.decoder = CvBridge()
-        self.node.create_subscription(Image, 'camera/image_raw', self.camera_raw_callback, 1)
+        self.node.create_subscription(
+            Image, 'camera/image_raw', self.camera_raw_callback, 1)
 
     async def camera_raw_callback(self, msg):
         """
@@ -76,8 +71,6 @@ class Camera:
         """
         self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         self.new_frame.value = True
-        self.framebuffer[self.framebuf_idx] = self.frame
-        self.framebuf_idx = (self.framebuf_idx + 1) % self.framebuffer.shape[0]
         self.frame_id += 1
 
         if self.save_data:

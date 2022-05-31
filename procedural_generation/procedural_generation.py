@@ -188,7 +188,7 @@ def main(clientID):
         pos_obstacles = {1: [], 2: [], 3: [], 4: []}
         while True:
             if not generated_next_chunk:
-                obs = generate_lab(state_from_row(obs[-1]), 10, 0)
+                obs = generate_lab(state_from_row(obs[-1]), 10, 1)
                 pos_obstacles = from_map_to_pos_list(
                     obs,
                     switcher_count)
@@ -208,7 +208,7 @@ def main(clientID):
                 tiles_handlers.append(moved_tile)
                 cur_tile_x = pos_RM[0]
 
-            for el in range(1, 5):
+            for el in range(1, 2):
                 if start and len(pos_obstacles[el]) > 0 and len(tiles_objects[0][el]) > 0:
                     obstacle_pos = pos_obstacles[el][0]
                     pos_obstacles[el] = pos_obstacles[el][1:]
@@ -228,7 +228,7 @@ def main(clientID):
                     tiles_objects[0][el] = tiles_objects[0][el][1:]
                     remove_obstacle(clientID, handle_to_move)
 
-                time.sleep(0.05)
+                time.sleep(0.08)
 
             if len(pos_obstacles[1]) == 0 and len(tiles_objects[0][1]) == 0:
                 start = False

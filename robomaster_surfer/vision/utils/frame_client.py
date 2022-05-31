@@ -41,7 +41,7 @@ class FrameClient(Process):
                     if res is not None:
                         self.anomaly_buffer.value = res
             else:
-                time.sleep(0.1)
+                time.sleep(0.05)
 
     def connect(self):
         if not self.connected:

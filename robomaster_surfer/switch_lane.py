@@ -52,17 +52,6 @@ class PDController:
 
         return self.kp * (des_theta - curr_theta)
 
-# class ProportionalController:
-
-#     def __init__(self, kp=2):
-#         self.kp = kp
-
-#     def update_lat_vel(self, des_y, curr_y):
-#         return self.kp * (des_y - curr_y)
-
-#     def update_ang_vel(self, des_theta, curr_theta):
-#         return self.kp * (des_theta - curr_theta)
-
 
 class ControllerNode(Node):
     """
@@ -81,8 +70,8 @@ class ControllerNode(Node):
         self.ang_vel = 0.0
 
         self.dt = 1/20
-        self.check_every = 45
-        self.cur_check_count = 0
+        self.check_every = 25
+        self.camera_count = 0
         self.l_obs, self.r_obs = False, False
 
         self.num_lanes = 3
@@ -91,25 +80,21 @@ class ControllerNode(Node):
         self.lane_size = self.corridor_size / self.num_lanes
         self.lanes = self.create_lanes()
 
-        self.switch_period = 1
-
         self.cur_frame_id = None
 
         self.init_lane = self.lanes[1]
         self.current_lane = self.init_lane
         self.next_lane = None
-        self.crossing_num = 0
         self.pc = PDController(kp=2.3)
 
         self.state = State(0)
-
-        self.timestamp = None
 
         self.pose = None
         manager = Manager()
         self.last_decision = manager.Value("i", 1)
 
-        self.camera = Camera(self, 3, self.last_decision, save_data=False, stream_data=True)
+        self.camera = Camera(self, self.last_decision,
+                             save_data=False, stream_data=True)
         self.is_saving = False
 
         self.init_theta = None
@@ -117,56 +102,30 @@ class ControllerNode(Node):
 
         self.switching = False
 
-        self.timestamp = self.get_clock().now().nanoseconds
-
         # Create a publisher for the topic 'cmd_vel'
         self.vel_publisher = self.create_publisher(Twist, 'cmd_vel', 1)
 
         # Create a subscriber for RM Odometry
         self.pose_subscriber = self.create_subscription(
-            Odometry, 'odom', self.pose_callback, 3)
-
-        # self.steering_sequence = [0, 1, 2, 1, 2, 1, 0, 1, 0, 1, 2, 1]
-        self.cur = 1
-
-    def check_col(self, col, frame):
-
-        tot = len(frame)
-        # self.get_logger().info(str(tot))
-        counted = 0
-        for i in range(tot):
-            # if i % 100 == 0:
-            #     self.get_logger().info(str(frame[i][col]))
-            if frame[i][col][2] > 130 and frame[i][col][0] > 55:
-                counted += 1
-        self.get_logger().info(str(counted/tot))
-        return counted/tot > 0.7
+            Odometry, 'odom', self.pose_callback, 1)
 
     def double_check(self, frame):
         tot = len(frame)
 
         countedl = 0
         countedr = 0
-        for i in range(tot):
-            # if i % 100 == 0:
-            #     self.get_logger().info(str(frame[i][col]))
+        for i in range(0, tot, 5):
             if frame[i][-1][2] > 125 and frame[i][-1][0] > 55:
                 countedr += 1
             if frame[i][0][2] > 125 and frame[i][0][0] > 55:
                 countedl += 1
-        left = countedl/tot
-        right = countedr/tot
+        tot = tot/5
+        l = countedl/tot
+        r = countedr/tot
 
-        self.get_logger().info(str(left))
-        self.get_logger().info(str(right))
-        self.get_logger().info(" ")
-        return left > 0.65, right > 0.65
-
-    def check_left(self, frame):
-        return self.check_col(0, frame)
-
-    def check_right(self, frame):
-        return self.check_col(-1, frame)
+        self.get_logger().info(str(round(l, 3)))
+        self.get_logger().info(str(round(r, 3)))
+        return l > 0.65, r > 0.65
 
     def create_lanes(self):
         """
@@ -200,7 +159,7 @@ class ControllerNode(Node):
         """
         Create and immediately start a timer that will regularly publish commands
         """
-        self.timer = self.create_timer(1 / 60, self.update_callback)
+        self.timer = self.create_timer(1 / 45, self.update_callback)
 
     def stop(self):
         """
@@ -219,9 +178,9 @@ class ControllerNode(Node):
             self.get_logger().info(str(self.last_decision.value))
 
             if self.last_decision.value == 0:
-                return self.lanes[self.current_lane.id-1]
+                return self.lanes[(self.current_lane.id-1) % 3]
             elif self.last_decision.value == 2:
-                return self.lanes[self.current_lane.id+1]
+                return self.lanes[(self.current_lane.id+1) % 3]
 
         return self.current_lane
 
@@ -250,10 +209,9 @@ class ControllerNode(Node):
             return
 
         # self.get_logger().info(str(self.state))
-        if self.cur_check_count % self.check_every == 0:
-            frame = self.camera.frame.copy()
-            self.l_obs, self.r_obs = self.double_check(frame)
-        self.cur_check_count += 1
+        if (self.camera.frame_id - self.camera_count) >= self.check_every:
+            self.camera_count = self.camera.frame_id
+            self.l_obs, self.r_obs = self.double_check(self.camera.frame)
 
         if self.state == State.FORWARD:
 
@@ -262,7 +220,8 @@ class ControllerNode(Node):
             else:
                 err = self.current_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(err, self.dt)
-                self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
+                self.ang_vel = self.pc.update_ang_vel(
+                    self.init_theta, self.theta)
 
         # self.get_logger().info(str(self.state))
 
@@ -280,7 +239,8 @@ class ControllerNode(Node):
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
-                self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
+                self.ang_vel = self.pc.update_ang_vel(
+                    self.init_theta, self.theta)
                 self.switching = True
 
                 if abs(diff) <= EPSILON:
@@ -293,10 +253,11 @@ class ControllerNode(Node):
             else:
                 if self.camera.frame_id - self.cur_frame_id >= 15:
                     self.cur_frame_id = None
-                    self.get_logger().info("VAI USI VAI")
+                    self.get_logger().info("restart switching lane operation")
                 err = self.current_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(err, self.dt)
-                self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
+                self.ang_vel = self.pc.update_ang_vel(
+                    self.init_theta, self.theta)
 
         # self.get_logger().info(str(self.state))
         # self.get_logger().info(str(''))
@@ -314,11 +275,14 @@ class ControllerNode(Node):
         It prints the current lane, the destination lane, the lateral velocity, the linear velocity, and the
         switch period
         """
-        self.get_logger().debug(f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
-        self.get_logger().debug(f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
-        self.get_logger().debug(f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
-        self.get_logger().debug(f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
-        self.get_logger().debug(f'Switch period: {self.switch_period}', throttle_duration_sec=0.5)
+        self.get_logger().debug(
+            f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
+        self.get_logger().debug(
+            f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
+        self.get_logger().debug(
+            f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
+        self.get_logger().debug(
+            f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
 
 
 def main():
