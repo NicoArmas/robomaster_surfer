@@ -3,16 +3,14 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from os import system
 import sys
 from enum import Enum
+from multiprocessing import Manager
 
 import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-
-from multiprocessing import Manager
 
 from .vision import Camera
 
@@ -22,9 +20,9 @@ EPSILON = 0.01
 
 class Lane:
 
-    def __init__(self, id, name, pos):
+    def __init__(self, lane_id, name, pos):
 
-        self.id = id
+        self.id = lane_id
         self.name = name
         self.pos_y = pos
 
@@ -35,16 +33,16 @@ class State(Enum):
     CHECKING = 2
 
 
-class ProportionalController:
+class PDController:
 
-    def __init__(self, kp=2, kd=0.42):
+    def __init__(self, kp=2., kd=0.42):
         self.kp = kp
         self.kd = kd
         self.last_value = None
 
     def update_lat_vel(self, val, dt):
         i = 0
-        if self.last_value != None:
+        if self.last_value is not None:
             i = ((val - self.last_value)/dt)*self.kd
         self.last_value = val
 
@@ -101,7 +99,7 @@ class ControllerNode(Node):
         self.current_lane = self.init_lane
         self.next_lane = None
         self.crossing_num = 0
-        self.pc = ProportionalController(kp=2.3)
+        self.pc = PDController(kp=2.3)
 
         self.state = State(0)
 
@@ -111,8 +109,7 @@ class ControllerNode(Node):
         manager = Manager()
         self.last_decision = manager.Value("i", 1)
 
-        self.camera = Camera(self, 600, self.last_decision, save_data=False,
-                             save_video=SAVE_VIDEO, stream_data=True)
+        self.camera = Camera(self, 3, self.last_decision, save_data=False, stream_data=True)
         self.is_saving = False
 
         self.init_theta = None
@@ -157,13 +154,13 @@ class ControllerNode(Node):
                 countedr += 1
             if frame[i][0][2] > 125 and frame[i][0][0] > 55:
                 countedl += 1
-        l = countedl/tot
-        r = countedr/tot
+        left = countedl/tot
+        right = countedr/tot
 
-        self.get_logger().info(str(l))
-        self.get_logger().info(str(r))
+        self.get_logger().info(str(left))
+        self.get_logger().info(str(right))
         self.get_logger().info(" ")
-        return l > 0.65, r > 0.65
+        return left > 0.65, right > 0.65
 
     def check_left(self, frame):
         return self.check_col(0, frame)
@@ -265,8 +262,7 @@ class ControllerNode(Node):
             else:
                 err = self.current_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(err, self.dt)
-                self.ang_vel = self.pc.update_ang_vel(
-                    self.init_theta, self.theta)
+                self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
 
         # self.get_logger().info(str(self.state))
 
@@ -284,8 +280,7 @@ class ControllerNode(Node):
                 # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
-                self.ang_vel = self.pc.update_ang_vel(
-                    self.init_theta, self.theta)
+                self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
                 self.switching = True
 
                 if abs(diff) <= EPSILON:
@@ -301,8 +296,7 @@ class ControllerNode(Node):
                     self.get_logger().info("VAI USI VAI")
                 err = self.current_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(err, self.dt)
-                self.ang_vel = self.pc.update_ang_vel(
-                    self.init_theta, self.theta)
+                self.ang_vel = self.pc.update_ang_vel(self.init_theta, self.theta)
 
         # self.get_logger().info(str(self.state))
         # self.get_logger().info(str(''))
@@ -317,18 +311,14 @@ class ControllerNode(Node):
 
     def print_debug(self):
         """
-        It prints the current lane, the destination lane, the lateral velocity, the linear velocity, and the switch period
+        It prints the current lane, the destination lane, the lateral velocity, the linear velocity, and the
+        switch period
         """
-        self.get_logger().debug(
-            f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
-        self.get_logger().debug(
-            f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
-        self.get_logger().debug(
-            f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
-        self.get_logger().debug(
-            f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
-        self.get_logger().debug(
-            f'Switch period: {self.switch_period}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Curr. lane: {self.current_lane}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Dest. vel: {self.next_lane}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Lat. vel: {self.lat_vel}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Lin. vel: {self.lin_vel}', throttle_duration_sec=0.5)
+        self.get_logger().debug(f'Switch period: {self.switch_period}', throttle_duration_sec=0.5)
 
 
 def main():
@@ -339,14 +329,14 @@ def main():
     node = ControllerNode()
     node.start()
 
-    # Keep processings events until someone manually shuts down the node
+    # Keep processing events until someone manually shuts down the node
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.camera.stop()
         pass
 
-    # Ensure the Thymio is stopped before exiting
+    # Ensure the RM is stopped before exiting
     node.stop()
 
 

@@ -1,10 +1,9 @@
+import argparse
 import glob
+import logging
+import os
 
 import cv2
-import os
-import logging
-import argparse
-
 import numpy as np
 from tqdm.auto import tqdm
 

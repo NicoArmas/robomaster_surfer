@@ -2,6 +2,7 @@ import glob
 import os
 
 import cv2
+import numpy as np
 import torch
 import torchvision.transforms
 from torch.utils.data import Dataset
@@ -16,16 +17,19 @@ class ObstacleDataset(Dataset):
         self.samples = []
         self.data_dir = data_dir
         self.transform = transform
-        targets = pd.read_csv(f'{os.getcwd()}/{data_dir}/targets.csv').to_numpy()
+        self.targets = []
+        self.labels = []
+        targets = pd.read_csv(f'{os.getcwd()}/{data_dir}/targets.csv')["Label2"].to_numpy()
 
-        for idx, target in targets:
-            target = list(map(int, target.strip('(').strip(')').split(',')))
+        for idx, target in enumerate(targets):
+            target = torch.tensor(list(map(int, target.strip('(').strip(')').split(','))), dtype=torch.float)
             if len(target) == 1:
                 continue
-            t = target[0] + target[1] * 2 + target[2] * 4
-            target = torch.zeros(8, dtype=torch.float32)
-            target[t] = 1
+            self.labels.append(target.argmax())
+            self.targets.append(target.tolist())
             self.samples.append((f'img_{idx}.png', target))
+        self.targets = np.array(self.targets)
+        self.labels = np.array(self.labels)
 
     def __len__(self):
         return len(self.samples)
@@ -42,6 +46,7 @@ class ObstacleDataset(Dataset):
 
 if __name__ == '__main__':
     dataset = ObstacleDataset('robomaster_surfer/vision/data/obstacle_avoidance')
+    print(dataset.targets)
     print(len(dataset))
     print(dataset[0])
     print('The shape of tensor for 50th image in train dataset: ', dataset[-1][0].shape)

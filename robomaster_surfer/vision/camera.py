@@ -1,154 +1,96 @@
-import socketserver
-from copy import deepcopy
+import ctypes
+import os
+from multiprocessing import RawArray, Manager
 
 import cv2
 import numpy as np
-import robomaster_msgs.msg
-import libmedia_codec
-from rclpy.node import Node
 from cv_bridge import CvBridge
+from rclpy.node import Node
 from sensor_msgs.msg import Image
-from .utils import FrameClient
-import os
-from threading import Thread
-from multiprocessing import Queue, RawArray
-import threading
 
-import ctypes
+from .utils import FrameClient
+
 
 # A camera is a device that can take pictures.
 # It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
 
 
 class Camera:
-    def __init__(self, node: Node, framebuffer_size: int, last_frame, save_data=False, save_video=False, save_preds=False,
-                 stream_data=False):
+    def __init__(self, node: Node, framebuffer_size: int, last_prediction,
+                 save_data=False, stream_data=False, get_anomaly=False):
         """
-        This function initializes the class with the node and framebuffer size
+        This function is called when the node is initialized. It creates a subscription to the camera topic and a
+        callback function that is called when a new image is published
 
-        :param node: The node that will be used to subscribe to the camera topic
+        :param node: the ROS node that we're using to subscribe to the camera topic
         :type node: Node
-        :param framebuffer_size: The number of frames to store in the framebuffer
+        :param framebuffer_size: The number of frames to store in the buffer
         :type framebuffer_size: int
+        :param last_prediction: This is a shared array that is used to communicate the last prediction from the model
+        :param save_data: If true, the node will save the data to a folder called data, defaults to False (optional)
+        :param stream_data: If True, the node will stream the data to the server, defaults to False (optional)
+        :param get_anomaly: If true, the anomaly buffer will be filled with the anomaly image, defaults to False (optional)
         """
         self.node = node
         self.save_data = save_data
         self.buf_size = framebuffer_size
         self.stream_data = stream_data
-        self.framebuffer = np.zeros(
-            (framebuffer_size, 720, 1280, 3), dtype=np.uint8)
+        self.framebuffer = np.zeros((framebuffer_size, 720, 1280, 3), dtype=np.uint8)
 
-        shared_array = RawArray(ctypes.c_double, 49152)
-        self.shared_array_np = np.ndarray(
-            (128, 128, 3), dtype=np.uint8, buffer=shared_array)
+        shared_array = RawArray(ctypes.c_uint8, 49152)
+        self.shared_array_np = np.ndarray((128, 128, 3), dtype=np.uint8, buffer=shared_array)
 
-        self.streambuffer = Queue()
-        self.anomaly_buffer = Queue()
-        self.move_buffer = last_frame
+        self.last_prediction = last_prediction
         self.framebuf_idx = 0
         self.frame_id = 0
         self.frame = None
         self.buffer_full = [False] * 2
         self.video_idx = 0
-        self.save_video = save_video
-        self.video_writer = None
-        self.save_preds = save_preds
         self.prediction = None
-        self._video_decoder = libmedia_codec.H264Decoder()
+        self.get_anomaly = get_anomaly
+
+        if get_anomaly:
+            self.anomaly_buffer = np.zeros((129, 128, 3), dtype=np.uint8)
+        else:
+            self.anomaly_buffer = None
 
         if self.stream_data:
-            self.frame_client = FrameClient('100.100.150.14', 5555, self.shared_array_np,
-                                            self.move_buffer, self.anomaly_buffer, logger=self.node.get_logger())
+            manager = Manager()
+            self.new_frame = manager.Value('new_frame', False)
+            self.frame_client = FrameClient('100.100.150.14', 5555, self.shared_array_np, self.last_prediction,
+                                            self.new_frame, self.anomaly_buffer, self.node.get_logger())
             self.frame_client.start()
 
-        if not os.path.exists('./data'):
+        if save_data and not os.path.exists('./data'):
             os.mkdir('./data')
 
-        if self.save_video:
-            self.node.get_logger().info("Initializing video writer")
-            self.video_writer = cv2.VideoWriter('./data/video.mp4',
-                                                cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
-
         self.decoder = CvBridge()
-        # Try this topic: camera/image_h264
-        self.node.create_subscription(
-            Image, 'camera/image_raw', self.camera_raw_callback, 1)
-        # self.node.create_subscription(robomaster_msgs.msg.H264Packet, 'camera/image_h264', self.camera_callback, 1)
+        self.node.create_subscription(Image, 'camera/image_raw', self.camera_raw_callback, 1)
 
     async def camera_raw_callback(self, msg):
         """
-        It takes in a ROS message, converts it to a numpy array, and stores it in a buffer
+        It takes the raw image from the camera, saves it to a buffer, and then saves it to a file if the user has
+        requested it
 
-        :param msg: the image message
+        :param msg: the message that is received from the camera
         """
         self.frame = self.decoder.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        self.new_frame.value = True
         self.framebuffer[self.framebuf_idx] = self.frame
         self.framebuf_idx = (self.framebuf_idx + 1) % self.framebuffer.shape[0]
+        self.frame_id += 1
+
         if self.save_data:
             cv2.imwrite('./data/img_{}.png'.format(self.frame_id), self.frame)
-        if self.save_video:
-            self.video_writer.write(self.frame)
+
         if self.stream_data:
             stream_frame = cv2.resize(self.frame, (128, 128))
-            # stream_frame = cv2.cvtColor(stream_frame, cv2.COLOR_BGR2GRAY)
-            # Copy data to our shared array.
             np.copyto(self.shared_array_np, stream_frame)
-            # self.streambuffer.put(stream_frame)
-        # self.node.get_logger().debug("Frame {} received".format(self.frame_id))
-        # cv2.imwrite(self.path.format(self.frame_id), cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR))
-        # self.node.get_logger().debug("Frame {} saved".format(self.frame_id))
-        self.frame_id += 1
-        # if self.framebuf_idx == 0:
-        #     self.buffer_full = True
-        #     self.node.get_logger().info(f"Saving buffer {self.framebuffer_used}")
-        #     run save buffer in another process
-        # multiprocessing.Process(target=Camera.save_buffer, args=(self, 'data/video{}.mp4')).start()
-
-    def save_buffer(self, filename: str):
-        """
-        It takes the frames from the buffer and saves them to a video file
-
-        :param filename: the name of the file to save the video to
-        :type filename: str
-        """
-        buffer_to_empty = self.framebuffers[np.where(
-            self.buffer_full == True)[0][0]]
-        w = cv2.VideoWriter(filename.format(self.video_idx),
-                            cv2.VideoWriter_fourcc(*'mp4v'), 20, (1280, 720))
-        for frame in self.framebuffer[buffer_to_empty]:
-            w.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-            # cv2.imwrite(path.format(i), cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-        self.node.get_logger().info(
-            f'Saved buffer frames to {filename.format(self.video_idx)}')
-        w.release()
-        self.buffer_full[buffer_to_empty] = False
-        self.node.is_saving = False
-        self.video_idx += 1
-
-    def _h264_decode(self, data):
-        res_frame_list = []
-        frames = self._video_decoder.decode(data)
-        for frame_data in frames:
-            (frame, width, height, ls) = frame_data
-            if frame:
-                frame = np.fromstring(
-                    frame, dtype=np.ubyte, count=len(frame), sep='')
-                frame = (frame.reshape((height, width, 3)))
-                res_frame_list.append(frame)
-        return res_frame_list
-
-    async def camera_callback(self, msg):
-        self.frame = msg
-        self.node.get_logger().info(f'got frame: {msg}')
-        in_frame = (
-            np
-            .frombuffer(msg.data, np.uint8)
-            .reshape([1280, 720, 3])
-        )
-        exit(0)
 
     def stop(self):
-        if self.save_video:
-            self.video_writer.release()
+        """
+        It closes the frame client and joins it
+        """
+        if self.stream_data:
             self.frame_client.close()
             self.frame_client.join()

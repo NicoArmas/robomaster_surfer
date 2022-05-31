@@ -1,4 +1,5 @@
 import math
+from collections import Counter
 from datetime import datetime
 
 import os
@@ -7,7 +8,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import WeightedRandomSampler
 from tqdm.auto import tqdm
 import torch.functional as F
 
@@ -142,7 +145,7 @@ class Trainer:
         self.train()
         torch.save(self.model.state_dict(), f"{self.run_name}.pt")
         if test:
-            self.model.load_state_dict(torch.load(f"{self.run_name}_best_val_acc.pt"))
+            self.model.load_state_dict(torch.load(f"{self.run_name}_best.pt"))
             self.test(test_path)
         if self.use_wandb:
             model_artifact.add_file(f"{self.run_name}.pt")
@@ -288,9 +291,11 @@ class Trainer:
 
                     if self.task == 'classification':
                         if np.mean(acc) > best_val_acc:
-                            best_val_acc = np.mean(acc)
-                            torch.save(autoencoder.state_dict(),
-                                       f'{self.run_name}_best_val_acc.pt')
+                            if np.mean(v_mse) < best_val_loss:
+                                best_val_loss = np.mean(v_mse)
+                                best_val_acc = np.mean(acc)
+                                torch.save(autoencoder.state_dict(),
+                                           f'{self.run_name}_best.pt')
                     # save checkpoint to resume training
                     resume_dict = {
                         'epoch': epoch,
@@ -412,9 +417,19 @@ def train_obstacle_avoidance_model():
     lr = 1e-4
     dropout = 0
     train_set = ObstacleDataset('robomaster_surfer/vision/data/obstacle_avoidance')
-    train_set, valid_set = torch.utils.data.random_split(train_set, [int(len(train_set) * 0.9),
-                                                                     int(len(train_set) * 0.1)+1])
-    test_set = valid_set
+    targets = train_set.targets
+    labels = train_set.labels
+
+    train_indices, valid_indices = train_test_split(np.arange(len(train_set)), test_size=0.15, stratify=labels)
+    valid_set = torch.utils.data.Subset(train_set, valid_indices)
+    train_set = torch.utils.data.Subset(train_set, train_indices)
+
+    targets = targets[train_indices]
+    labels = labels[train_indices]
+
+    train_indices, test_indices = train_test_split(np.arange(len(train_set)), test_size=0.1, stratify=labels)
+    test_set = torch.utils.data.Subset(train_set, test_indices)
+    train_set = torch.utils.data.Subset(train_set, train_indices)
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, num_workers=4,
                                                pin_memory=True, shuffle=True)
@@ -427,7 +442,7 @@ def train_obstacle_avoidance_model():
     model = ObstacleAvoidance().to(DEVICE)
 
     wandb_cfg = {
-        "project": "robomaster_surfer_test_model",
+        "project": "Obstacle Avoidance robomaster",
         "entity": "axhyra",
         "name": "autoencoder",
         "group": f'ObstacleAvoidance',
