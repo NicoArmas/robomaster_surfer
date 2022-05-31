@@ -245,28 +245,34 @@ if __name__ == '__main__':
     argparser.add_argument('-i', '--ip', type=str, default='127.0.0.1')
     ip = argparser.parse_args().ip
 
-    print('Program started')
-    sim.simxFinish(-1)  # just in case, close all opened connections
-    clientID = sim.simxStart(ip, 19997, True, True,
-                             5000, 5)  # Connect to CoppeliaSim
-    # Load robomaster scene
-    sim.simxLoadScene(clientID,
-                      "/home/usi/dev_ws/src/robomaster_surfer/scenes/rm_surfer.ttt",
-                      0,
-                      sim.simx_opmode_blocking)
+    try:
+        print('Program started')
+        sim.simxFinish(-1)  # just in case, close all opened connections
+        clientID = sim.simxStart(ip, 19997, True, True,
+                                 5000, 5)  # Connect to CoppeliaSim
+        # Load robomaster scene
+        sim.simxLoadScene(clientID,
+                          "/home/usi/dev_ws/src/robomaster_surfer/scenes/rm_surfer.ttt",
+                          0,
+                          sim.simx_opmode_blocking)
 
-    # Start simulation
-    sim.simxStartSimulation(clientID, sim.simx_opmode_blocking)
+        # Start simulation
+        sim.simxStartSimulation(clientID, sim.simx_opmode_blocking)
 
-    shell_source('/home/usi/dev_ws/install/setup.bash')
+        shell_source('/home/usi/dev_ws/install/setup.bash')
 
-    # Start the robomaster ros bridge
-    bridge = subprocess.Popen(
-        "ros2 launch robomaster_ros main.launch model:=s1 name:=RoboMaster serial_number:=RM0001 video_resolution:=720",
-        shell=True, executable='/bin/bash')
-
-    # Start the roboaster controller
-    controller = subprocess.Popen("ros2 launch robomaster_surfer lane_switcher.launch.py", shell=True, executable='/bin/bash')
+        # Start the robomaster ros bridge
+        bridge = subprocess.Popen(
+            "ros2 launch robomaster_ros main.launch model:=s1 name:=RoboMaster serial_number:=RM0001 video_resolution:=720",
+            shell=True, executable='/bin/bash')
+        time.sleep(1)
+        # Start the roboaster controller
+        controller = subprocess.Popen("ros2 launch robomaster_surfer lane_switcher.launch.py", shell=True, executable='/bin/bash')
+    except:
+        bridge.terminate()
+        sim.simxStopSimulation(clientID, sim.simx_opmode_blocking)
+        sim.simxFinish(clientID)
+        controller.terminate()
 
     try:
         main(clientID)
