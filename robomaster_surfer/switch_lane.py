@@ -70,7 +70,7 @@ class ControllerNode(Node):
         self.ang_vel = 0.0
 
         self.dt = 1/20
-        self.check_every = 25
+        self.check_every = 1
         self.camera_count = 0
         self.l_obs, self.r_obs = False, False
 
@@ -125,7 +125,7 @@ class ControllerNode(Node):
 
         self.get_logger().info(str(round(l, 3)))
         self.get_logger().info(str(round(r, 3)))
-        return l > 0.65, r > 0.65
+        return l > 0.58, r > 0.58
 
     def create_lanes(self):
         """
@@ -159,7 +159,7 @@ class ControllerNode(Node):
         """
         Create and immediately start a timer that will regularly publish commands
         """
-        self.timer = self.create_timer(1 / 45, self.update_callback)
+        self.timer = self.create_timer(1 / 40, self.update_callback)
 
     def stop(self):
         """
@@ -251,7 +251,7 @@ class ControllerNode(Node):
                     self.get_logger().info("Forward")
 
             else:
-                if self.camera.frame_id - self.cur_frame_id >= 15:
+                if self.camera.frame_id - self.cur_frame_id >= 30:
                     self.cur_frame_id = None
                     self.get_logger().info("restart switching lane operation")
                 err = self.current_lane.pos_y - self.pose.y

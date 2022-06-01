@@ -1,10 +1,13 @@
+import glob
 import math
 from collections import Counter
 from datetime import datetime
 
 import os
 
+import cv2
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,6 +16,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import WeightedRandomSampler
 from tqdm.auto import tqdm
 import torch.functional as F
+import albumentations as A
 
 import wandb
 from host.autoencoder import Autoencoder
@@ -358,6 +362,56 @@ class Trainer:
         return np.mean(auc)
 
 
+def augment_dataset(dataset, desired_label_distribution, seed=None):
+    label_distribution = np.bincount(dataset.labels)
+    label_distribution = label_distribution / np.sum(label_distribution)
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    # get the indices of the labels that need to be augmented
+    indices = np.where(label_distribution < desired_label_distribution)[0]
+
+    cls_samples = []
+
+    for cls in range(3):
+        # get the indices of the samples that belong to the class
+        cls_samples.append(dataset.samples[np.array(dataset.labels) == cls])
+
+    counters = [0, 0, 0]
+    data_csv = pd.read_csv('robomaster_surfer/vision/data/obstacle_avoidance/targets.csv')
+    last_img_id = 9998
+    with tqdm() as pbar:
+        while not np.all(np.isclose(label_distribution, desired_label_distribution, atol=1e-2)):
+            for cls in indices:
+                if np.isclose(label_distribution[cls], desired_label_distribution[cls], atol=1e-3):
+                    continue
+                else:
+                    img, target = cls_samples[cls][counters[cls]]
+                    lane = data_csv.loc[data_csv['index'] == int(img.split('_')[-1].split('.')[0])].to_numpy()[-1][-1]
+
+                    # img = cv2.imread(f'robomaster_surfer/vision/data/obstacle_avoidance/{img}')
+                    # encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), np.random.randint(20, 35)]
+                    # _, img = cv2.imencode('.jpg', img, encode_param)
+                    # img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+                    # last_img_id = int(sorted(glob.glob(f'robomaster_surfer/vision/data/obstacle_avoidance/*.png'), key=lambda x: int(x.split('_')[-1].split('.')[0]))[-1].split('_')[-1].split('.')[0])
+                    last_img_id += 1
+                    # cv2.imwrite(f'robomaster_surfer/vision/data/obstacle_avoidance/img_{last_img_id}.png', img)
+                    dataset.insert(last_img_id,
+                                   cls,
+                                   tuple(target.type(torch.uint8).numpy().tolist()),
+                                   lane)
+                    counters[cls] = (counters[cls] + 1) % len(cls_samples[cls])
+
+            label_distribution = np.bincount(dataset.labels)
+            label_distribution = label_distribution / np.sum(label_distribution)
+            pbar.set_postfix(label_distribution=label_distribution)
+
+    new_distribution = np.bincount(dataset.labels)
+    new_distribution = new_distribution / np.sum(new_distribution)
+    print(f'\nNew distribution: {new_distribution}')
+
+
 def main():
     batch_size = 32
     epochs = 200
@@ -417,15 +471,18 @@ def train_obstacle_avoidance_model():
     lr = 1e-4
     dropout = 0
     train_set = ObstacleDataset('robomaster_surfer/vision/data/obstacle_avoidance')
+
     targets = train_set.targets
     labels = train_set.labels
+
+    augment_dataset(train_set, [0.25, 0.5, 0.25])
 
     train_indices, valid_indices = train_test_split(np.arange(len(train_set)), test_size=0.15, stratify=labels)
     valid_set = torch.utils.data.Subset(train_set, valid_indices)
     train_set = torch.utils.data.Subset(train_set, train_indices)
 
-    targets = targets[train_indices]
-    labels = labels[train_indices]
+    targets = np.array(targets)[train_indices]
+    labels = np.array(labels)[train_indices]
 
     train_indices, test_indices = train_test_split(np.arange(len(train_set)), test_size=0.1, stratify=labels)
     test_set = torch.utils.data.Subset(train_set, test_indices)

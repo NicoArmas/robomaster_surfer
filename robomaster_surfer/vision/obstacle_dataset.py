@@ -22,14 +22,25 @@ class ObstacleDataset(Dataset):
         targets = pd.read_csv(f'{os.getcwd()}/{data_dir}/targets.csv')["Label2"].to_numpy()
 
         for idx, target in enumerate(targets):
-            target = torch.tensor(list(map(int, target.strip('(').strip(')').split(','))), dtype=torch.float)
+            target = torch.tensor(list(map(int, target.replace(' ', '').strip('(').strip(')').split(','))),
+                                  dtype=torch.float)
             if len(target) == 1:
                 continue
-            self.labels.append(target.argmax())
-            self.targets.append(target.tolist())
-            self.samples.append((f'img_{idx}.png', target))
-        self.targets = np.array(self.targets)
-        self.labels = np.array(self.labels)
+            self.labels.append(target.argmax().item())
+            self.samples.append([f'img_{idx}.png', target])
+            self.targets.append(target.type(torch.uint8).tolist())
+        self.samples = np.array(self.samples)
+
+    def insert(self, img, label, target, lane):
+        list(self.samples).append((img, label))
+        self.targets.append(target)
+        self.labels.append(label)
+        self.samples = np.array(self.samples)
+        targets = pd.read_csv(f'{os.getcwd()}/{self.data_dir}/targets.csv')
+        targets.loc[-1] = [img, str(target), lane]
+        targets.index = targets.index + 1
+        targets = targets.sort_values(by=['index'])
+        targets.to_csv(f'{os.getcwd()}/{self.data_dir}/targets.csv', index=False)
 
     def __len__(self):
         return len(self.samples)
