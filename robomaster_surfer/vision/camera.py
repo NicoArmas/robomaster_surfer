@@ -60,9 +60,9 @@ class Camera:
 
         self.decoder = CvBridge()
         self.node.create_subscription(
-            Image, 'camera/image_raw', self.camera_raw_callback, 1)
+            Image, 'camera/image_raw', self.camera_callback, 1)
 
-    async def camera_raw_callback(self, msg):
+    async def camera_callback(self, msg):
         """
         It takes the raw image from the camera, saves it to a buffer, and then saves it to a file if the user has
         requested it

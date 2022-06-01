@@ -3,13 +3,12 @@ from glob import glob
 
 package_name = 'robomaster_surfer'
 vision_package = 'robomaster_surfer.vision'
-models_package = 'robomaster_surfer.vision.models'
 utils_package = 'robomaster_surfer.vision.utils'
 
 setup(
     name=package_name,
     version='0.0.0',
-    packages=[package_name, vision_package, models_package, utils_package],
+    packages=[package_name, vision_package, utils_package],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),

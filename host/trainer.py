@@ -1,9 +1,7 @@
 import glob
 import math
-from collections import Counter
-from datetime import datetime
-
 import os
+from datetime import datetime
 
 import cv2
 import numpy as np
@@ -11,23 +9,19 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import wandb
 from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import WeightedRandomSampler
 from tqdm.auto import tqdm
-import torch.functional as F
-import albumentations as A
 
-import wandb
+from autoencoder_dataset import LaneDataset
 from host.autoencoder import Autoencoder
 from host.obstacle_avoidance.obstacle_avoidance import ObstacleAvoidance
 from host.utils import compute_auc_score, plot_stages
-from autoencoder_dataset import LaneDataset
 from obstacle_dataset import ObstacleDataset
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# WANDB_PROJECT = ""
-# USE_WANDB = True
 DEBUG = False
 
 
@@ -39,17 +33,17 @@ def classification_metric(pred_labels, true_labels):
     assert 1 >= true_labels.all() >= 0
 
     # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
-    TP = torch.sum((pred_labels == 1) & (true_labels == 1))
+    true_positives = torch.sum((pred_labels == 1) & (true_labels == 1))
 
     # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
-    TN = torch.sum((pred_labels == 0) & (true_labels == 0))
+    true_negatives = torch.sum((pred_labels == 0) & (true_labels == 0))
 
     # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
-    FP = torch.sum((pred_labels == 1) & (true_labels == 0))
+    false_positives = torch.sum((pred_labels == 1) & (true_labels == 0))
 
     # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
-    FN = torch.sum((pred_labels == 0) & (true_labels == 1))
-    return TP, TN, FP, FN
+    false_negatives = torch.sum((pred_labels == 0) & (true_labels == 1))
+    return true_positives, true_negatives, false_positives, false_negatives
 
 
 class Trainer:
@@ -87,8 +81,8 @@ class Trainer:
         :param lr: learning rate
         :param loss_fn: The loss function to use. Defaults to MSELoss
         :param optimizer: The optimizer to use
-        :param run_number: This is the number of the run. This is used to create a unique name for the run, defaults to 0
-        (optional)
+        :param run_number: This is the number of the run. This is used to create a unique name for the run, defaults to
+        0 (optional)
         :param denoise: Whether to use denoising autoencoder or not, defaults to False (optional)
         :param noise_factor: The amount of noise to add to the input images, defaults to 0 (optional)
         :param split: the percentage of the dataset to use for training. The rest is used for validation, defaults to 0
@@ -138,6 +132,8 @@ class Trainer:
         if test and test_path is None:
             raise ValueError("test_path must be specified if test is True")
 
+        model_artifact = None
+
         if self.use_wandb:
             wandb.init(**self.wandb_cfg)
             wandb.watch(self.model, log="all")
@@ -158,8 +154,8 @@ class Trainer:
 
     def train(self):
         """
-        > The function trains the autoencoder model using the training data, and then evaluates the model on the validation
-        data
+        > The function trains the autoencoder model using the training data, and then evaluates the model on the
+        validation data
         """
         autoencoder = self.model
         optimizer = self.optimizer
@@ -170,7 +166,6 @@ class Trainer:
         split = self.split
         samples_per_epoch = self.samples_per_epoch
         denoise = self.denoise
-        noise_factor = self.noise_factor
         train_loader = self.train_loader
         val_loader = self.val_loader
         run_number = self.run_number
@@ -316,8 +311,8 @@ class Trainer:
 
     def test(self, path):
         """
-        It takes a model, a test loader, and a path to save the images to, and it computes the AUC score for the model on
-        the test set, and saves some images to the path
+        It takes a model, a test loader, and a path to save the images to, and it computes the AUC score for the model
+        on the test set, and saves some images to the path
 
         :param path: the path to save the images to
         :return: The mean of the AUC score
@@ -394,7 +389,9 @@ def augment_dataset(dataset, desired_label_distribution, seed=None):
                     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), np.random.randint(20, 35)]
                     _, img = cv2.imencode('.jpg', img, encode_param)
                     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
-                    last_img_id = int(sorted(glob.glob(f'robomaster_surfer/vision/data/obstacle_avoidance/*.png'), key=lambda x: int(x.split('_')[-1].split('.')[0]))[-1].split('_')[-1].split('.')[0])
+                    last_img_id = int(sorted(glob.glob(f'robomaster_surfer/vision/data/obstacle_avoidance/*.png'),
+                                             key=lambda x:
+                                             int(x.split('_')[-1].split('.')[0]))[-1].split('_')[-1].split('.')[0])
                     last_img_id += 1
                     cv2.imwrite(f'robomaster_surfer/vision/data/obstacle_avoidance/img_{last_img_id}.png', img)
                     dataset.insert(last_img_id,

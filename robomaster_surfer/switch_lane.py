@@ -112,20 +112,20 @@ class ControllerNode(Node):
     def double_check(self, frame):
         tot = len(frame)
 
-        countedl = 0
-        countedr = 0
+        counted_l = 0
+        counted_r = 0
         for i in range(0, tot, 5):
             if frame[i][-1][2] > 125 and frame[i][-1][0] > 55:
-                countedr += 1
+                counted_r += 1
             if frame[i][0][2] > 125 and frame[i][0][0] > 55:
-                countedl += 1
+                counted_l += 1
         tot = tot/5
-        l = countedl/tot
-        r = countedr/tot
+        left = counted_l/tot
+        right = counted_r/tot
 
-        self.get_logger().info(str(round(l, 3)))
-        self.get_logger().info(str(round(r, 3)))
-        return l > 0.58, r > 0.58
+        self.get_logger().info(str(round(left, 3)))
+        self.get_logger().info(str(round(right, 3)))
+        return left > 0.58, right > 0.58
 
     def create_lanes(self):
         """
@@ -205,7 +205,7 @@ class ControllerNode(Node):
         Update linear and angular velocities and publish them to ROS.
         """
         # Wait until an image is available
-        if self.camera.frame is None or self.pose is None and self.camera.move_buffer.empty():
+        if self.camera.frame is None or self.pose is None:
             return
 
         # self.get_logger().info(str(self.state))
