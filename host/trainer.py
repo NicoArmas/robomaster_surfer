@@ -390,13 +390,13 @@ def augment_dataset(dataset, desired_label_distribution, seed=None):
                     img, target = cls_samples[cls][counters[cls]]
                     lane = data_csv.loc[data_csv['index'] == int(img.split('_')[-1].split('.')[0])].to_numpy()[-1][-1]
 
-                    # img = cv2.imread(f'robomaster_surfer/vision/data/obstacle_avoidance/{img}')
-                    # encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), np.random.randint(20, 35)]
-                    # _, img = cv2.imencode('.jpg', img, encode_param)
-                    # img = cv2.imdecode(img, cv2.IMREAD_COLOR)
-                    # last_img_id = int(sorted(glob.glob(f'robomaster_surfer/vision/data/obstacle_avoidance/*.png'), key=lambda x: int(x.split('_')[-1].split('.')[0]))[-1].split('_')[-1].split('.')[0])
+                    img = cv2.imread(f'robomaster_surfer/vision/data/obstacle_avoidance/{img}')
+                    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), np.random.randint(20, 35)]
+                    _, img = cv2.imencode('.jpg', img, encode_param)
+                    img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+                    last_img_id = int(sorted(glob.glob(f'robomaster_surfer/vision/data/obstacle_avoidance/*.png'), key=lambda x: int(x.split('_')[-1].split('.')[0]))[-1].split('_')[-1].split('.')[0])
                     last_img_id += 1
-                    # cv2.imwrite(f'robomaster_surfer/vision/data/obstacle_avoidance/img_{last_img_id}.png', img)
+                    cv2.imwrite(f'robomaster_surfer/vision/data/obstacle_avoidance/img_{last_img_id}.png', img)
                     dataset.insert(last_img_id,
                                    cls,
                                    tuple(target.type(torch.uint8).numpy().tolist()),
