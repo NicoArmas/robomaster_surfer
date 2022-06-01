@@ -19,8 +19,16 @@ EPSILON = 0.01
 
 
 class Lane:
+    """Class used to describe the virtual lanes
+    """
 
     def __init__(self, lane_id, name, pos):
+        """initislize lane object
+
+        :param lane_id: id of the lane
+        :param name: name of the lane
+        :param pos: y pos of the lane
+        """
 
         self.id = lane_id
         self.name = name
@@ -28,14 +36,25 @@ class Lane:
 
 
 class State(Enum):
+    """Enum used to easily understand the state of the RM
+    """
     FORWARD = 0
     DECIDING = 1
     CHECKING = 2
 
 
 class PDController:
+    """PD controller class
+    """
 
     def __init__(self, kp=2., kd=0.42):
+        """Initialize the proportional controller
+
+        :param kp: multiplicative constant used 
+                   by the proportional controller
+        :param kd: multiplicative constant used
+                   by the derivative part of the controller
+        """
         self.kp = kp
         self.kd = kd
         self.last_value = None
@@ -55,10 +74,7 @@ class PDController:
 
 class ControllerNode(Node):
     """
-    Open-loop controller class to follow an 8 trajectory.
-    The idea is to write an eight as two circumferences.
-    Hence the same angular velocity is used but with different
-    sign, alternating between the two.
+    Controller node to update RoboMaster position
     """
 
     def __init__(self):
@@ -70,7 +86,7 @@ class ControllerNode(Node):
         self.ang_vel = 0.0
 
         self.dt = 1/20
-        self.check_every = 1
+        self.check_every = 10
         self.camera_count = 0
         self.l_obs, self.r_obs = False, False
 
@@ -95,11 +111,9 @@ class ControllerNode(Node):
 
         self.camera = Camera(self, self.last_decision,
                              save_data=False, stream_data=True)
-        self.is_saving = False
 
         self.init_theta = None
         self.theta = None
-
         self.switching = False
 
         # Create a publisher for the topic 'cmd_vel'
@@ -109,11 +123,20 @@ class ControllerNode(Node):
         self.pose_subscriber = self.create_subscription(
             Odometry, 'odom', self.pose_callback, 1)
 
-    def double_check(self, frame):
+    def patience_check(self, frame):
+        """ Check if there are obstacles on the left
+        and on the right of the RoboMaster
+
+        :param frame: frame to use to perform check
+        :return: tuple of booleans (l, r) True if the
+                 left (right) lane contains an obstacle
+        """
         tot = len(frame)
 
         counted_l = 0
         counted_r = 0
+        # count number of obstacles pixels in the left and right of the image
+        # checking 1 pixel every 5 to improve preformance
         for i in range(0, tot, 5):
             if frame[i][-1][2] > 125 and frame[i][-1][0] > 55:
                 counted_r += 1
@@ -143,7 +166,8 @@ class ControllerNode(Node):
 
     def pose_callback(self, msg):
         """
-        The function takes in a message from the topic `/odom` and stores the position and orientation of the car in the
+        The function takes in a message from the topic `/odom` and
+        stores the position and orientation of the RoboMaster in the
         variables `self.pose` and `self.theta` respectively
 
         :param msg: the message that is received from the topic
@@ -168,12 +192,15 @@ class ControllerNode(Node):
         cmd_vel = Twist()
         self.vel_publisher.publish(cmd_vel)
 
-    def sensed_front_obstacles(self):
+    def sensed_obstacle_in_lane(self):
+        """Returns true if an obstacle is sensed in the
+        current lane, 0 otherwise
+        """
         if self.last_decision.value != 1:
             return True
         return False
 
-    def lane_to_reach(self):
+    def choose_next_lane(self):
         if self.last_decision.value != 1:
             self.get_logger().info(str(self.last_decision.value))
 
@@ -185,6 +212,13 @@ class ControllerNode(Node):
         return self.current_lane
 
     def sensed_lat_obstacles(self, frame_id):
+        """ returns the estimated presence of an obstacle
+        on the left or on the right based on the patience
+        check
+
+        :param frame_id: frame id
+        :return: True if an obstacle is estimated, false otherwise
+        """
         tmp = False
         if self.cur_frame_id is None:
             if self.current_lane.id == 0:
@@ -211,11 +245,10 @@ class ControllerNode(Node):
         # self.get_logger().info(str(self.state))
         if (self.camera.frame_id - self.camera_count) >= self.check_every:
             self.camera_count = self.camera.frame_id
-            self.l_obs, self.r_obs = self.double_check(self.camera.frame)
+            self.l_obs, self.r_obs = self.patience_check(self.camera.frame)
 
         if self.state == State.FORWARD:
-
-            if self.sensed_front_obstacles():
+            if self.sensed_obstacle_in_lane():
                 self.state = State.DECIDING
             else:
                 err = self.current_lane.pos_y - self.pose.y
@@ -223,20 +256,15 @@ class ControllerNode(Node):
                 self.ang_vel = self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
-        # self.get_logger().info(str(self.state))
-
         if self.state == State.DECIDING:
-            self.next_lane = self.lane_to_reach()
+            self.next_lane = self.choose_next_lane()
             if self.next_lane != self.current_lane:
                 self.state = State.CHECKING
-
-        # self.get_logger().info(str(self.state))
 
         if self.state == State.CHECKING:
 
             self.pc.last_value = None
             if self.switching or (self.cur_frame_id is None and not self.sensed_lat_obstacles(self.camera.frame_id)):
-                # self.next_lane = self.lanes[0]  # ricordarsi di togliere
                 diff = self.next_lane.pos_y - self.pose.y
                 self.lat_vel = self.pc.update_lat_vel(diff, self.dt)
                 self.ang_vel = self.pc.update_ang_vel(
@@ -259,8 +287,6 @@ class ControllerNode(Node):
                 self.ang_vel = self.pc.update_ang_vel(
                     self.init_theta, self.theta)
 
-        # self.get_logger().info(str(self.state))
-        # self.get_logger().info(str(''))
 
         cmd_vel = Twist()
         cmd_vel.linear.x = self.lin_vel
