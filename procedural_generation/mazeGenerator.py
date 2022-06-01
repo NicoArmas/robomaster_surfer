@@ -64,9 +64,3 @@ def generate_lab(initial_state, size, start_from=1, gap=2):
             count = 0
 
     return environment
-
-"""
-a = generate_lab(0, 30, 2, 3)
-print(a)
-print(state_from_row(a[-1]))
-"""

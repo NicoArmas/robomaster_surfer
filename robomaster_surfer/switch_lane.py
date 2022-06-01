@@ -1,4 +1,4 @@
-"""This is the controller for Task 1 of the second Robotics assignment.
+"""This is the controller for the RoboMaster Surfer project.
 """
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
