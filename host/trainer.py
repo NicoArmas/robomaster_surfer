@@ -379,7 +379,7 @@ def augment_dataset(dataset, desired_label_distribution, seed=None):
         cls_samples.append(dataset.samples[np.array(dataset.labels) == cls])
 
     counters = [0, 0, 0]
-    data_csv = pd.read_csv('robomaster_surfer/vision/data/obstacle_avoidance/targets.csv')
+    data_csv = pd.read_csv('host/data/obstacle_avoidance/targets.csv')
     last_img_id = 9998
     with tqdm() as pbar:
         while not np.all(np.isclose(label_distribution, desired_label_distribution, atol=1e-2)):
@@ -470,7 +470,7 @@ def train_obstacle_avoidance_model():
     epochs = 200
     lr = 1e-4
     dropout = 0
-    train_set = ObstacleDataset('robomaster_surfer/vision/data/obstacle_avoidance')
+    train_set = ObstacleDataset('host/data/obstacle_avoidance')
 
     targets = train_set.targets
     labels = train_set.labels

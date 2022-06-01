@@ -55,8 +55,8 @@ class Camera:
                                             self.new_frame, self.anomaly_buffer, self.node.get_logger())
             self.frame_client.start()
 
-        if save_data and not os.path.exists('./data'):
-            os.mkdir('./data')
+        if save_data and not os.path.exists('../../host/data'):
+            os.mkdir('../../host/data')
 
         self.decoder = CvBridge()
         self.node.create_subscription(

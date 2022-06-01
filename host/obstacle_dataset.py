@@ -56,7 +56,7 @@ class ObstacleDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = ObstacleDataset('robomaster_surfer/vision/data/obstacle_avoidance')
+    dataset = ObstacleDataset('host/data/obstacle_avoidance')
     print(dataset.targets)
     print(len(dataset))
     print(dataset[0])

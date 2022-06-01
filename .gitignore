@@ -1,4 +1,4 @@
-robomaster_surfer/vision/data
+host/data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
