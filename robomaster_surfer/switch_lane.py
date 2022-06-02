@@ -146,8 +146,8 @@ class ControllerNode(Node):
         left = counted_l/tot
         right = counted_r/tot
 
-        self.get_logger().info(str(round(left, 3)))
-        self.get_logger().info(str(round(right, 3)))
+        # self.get_logger().info(str(round(left, 3)))
+        # self.get_logger().info(str(round(right, 3)))
         return left > 0.58, right > 0.58
 
     def create_lanes(self):
@@ -279,7 +279,7 @@ class ControllerNode(Node):
                     self.get_logger().info("Forward")
 
             else:
-                if self.camera.frame_id - self.cur_frame_id >= 30:
+                if self.camera.frame_id - self.cur_frame_id >= 20:
                     self.cur_frame_id = None
                     self.get_logger().info("restart switching lane operation")
                 err = self.current_lane.pos_y - self.pose.y

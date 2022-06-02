@@ -552,6 +552,7 @@ def train_transformer():
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, num_workers=4,
                                                pin_memory=True, shuffle=True)
+
     valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, num_workers=4,
                                                pin_memory=True, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, num_workers=4,
