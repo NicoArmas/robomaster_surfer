@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import wandb
+from self_attention_cv import ResNet50ViT
 from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import WeightedRandomSampler
@@ -517,6 +518,71 @@ def train_obstacle_avoidance_model():
         "use_wandb": True,
         "wandb_cfg": wandb_cfg,
         "run_name": f'ObstacleAvoidance',
+        "save_checkpoints": True,
+        "task": "classification",
+    }
+
+    trainer = Trainer(**trainer_cfg)
+
+    trainer.fit(test_path='./plots/{}.png')
+
+
+def train_transformer():
+    batch_size = 4
+    epochs = 200
+    lr = 1e-4
+    dropout = 0
+    train_set = ObstacleDataset('host/data/obstacle_avoidance')
+
+    targets = train_set.targets
+    labels = train_set.labels
+
+    augment_dataset(train_set, [0.25, 0.5, 0.25])
+
+    train_indices, valid_indices = train_test_split(np.arange(len(train_set)), test_size=0.15, stratify=labels)
+    valid_set = torch.utils.data.Subset(train_set, valid_indices)
+    train_set = torch.utils.data.Subset(train_set, train_indices)
+
+    targets = np.array(targets)[train_indices]
+    labels = np.array(labels)[train_indices]
+
+    train_indices, test_indices = train_test_split(np.arange(len(train_set)), test_size=0.1, stratify=labels)
+    test_set = torch.utils.data.Subset(train_set, test_indices)
+    train_set = torch.utils.data.Subset(train_set, train_indices)
+
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, num_workers=4,
+                                               pin_memory=True, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, num_workers=4,
+                                               pin_memory=True, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, num_workers=4,
+                                              pin_memory=True, shuffle=False)
+
+    input_size = output_size = (128, 128)
+    model = ResNet50ViT(img_dim=128, pretrained_resnet=False, blocks=4, num_classes=3, dim_linear_block=64, dim=256).to(
+                        DEVICE)
+
+    wandb_cfg = {
+        "project": "Obstacle Avoidance robomaster",
+        "entity": "axhyra",
+        "name": "transformer",
+        "group": f'transformer',
+    }
+
+    trainer_cfg = {
+        "autoencoder": model,
+        "train_loader": train_loader,
+        "val_loader": valid_loader,
+        "test_loader": test_loader,
+        "epochs": epochs,
+        "lr": lr,
+        "loss_fn": nn.CrossEntropyLoss(),
+        "optimizer": optim.Adam,
+        "run_number": 0,
+        "denoise": False,
+        "batch_size": batch_size,
+        "use_wandb": True,
+        "wandb_cfg": wandb_cfg,
+        "run_name": f'transformer',
         "save_checkpoints": True,
         "task": "classification",
     }

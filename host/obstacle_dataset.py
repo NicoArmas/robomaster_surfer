@@ -29,13 +29,13 @@ class ObstacleDataset(Dataset):
             self.labels.append(target.argmax().item())
             self.samples.append([f'img_{idx}.png', target])
             self.targets.append(target.type(torch.uint8).tolist())
-        self.samples = np.array(self.samples)
+        self.samples = np.array(self.samples, dtype=object)
 
     def insert(self, img, label, target, lane):
         list(self.samples).append((img, label))
         self.targets.append(target)
         self.labels.append(label)
-        self.samples = np.array(self.samples)
+        self.samples = np.array(self.samples, dtype=object)
         targets = pd.read_csv(f'{os.getcwd()}/{self.data_dir}/targets.csv')
         targets.loc[-1] = [img, str(target), lane]
         targets.index = targets.index + 1
